@@ -1,22 +1,40 @@
-# game-debug-workbench
+# Game Debug Workbench
 
-A Codex and Claude Code skill for adding a debug panel to browser games. The workbench and both playable demos open in English or Japanese based on the browser’s preferred languages. In a game with its own language setting, pass it to `mountWorkbench({ locale, ... })`. Translate game-specific labels in the adapter. [Try the ball demo](https://roburon.github.io/game-debug-workbench/assets/web/demo.html) · [Language setup](references/integration.md#display-language)
+ブラウザゲームに開発用のデバッグ盤を組み込む、Codex・Claude Code向けのスキルです。着地や吹き出しの表示でゲームを止め、プレビューの横で数値を変えながら、気になる動きを1コマずつ確かめられます。
 
-ブラウザゲームに開発用のデバッグ盤を追加する、Codex・Claude Code向けのスキルです。ゲーム画面を見ながら、イベントが起きたコマで止めたり、調整値を変えて同じ入力を再生したりできます。
+**[ボールの反発を試す](https://roburon.github.io/game-debug-workbench/assets/web/demo.html)** · [3レーンの配達を試す](https://roburon.github.io/game-debug-workbench/assets/web/lane-demo.html) · [English README](README.en.md)
 
-盤面と見本はブラウザの優先言語に合わせて日本語・英語で表示します。ゲームに言語設定があれば、そちらを優先できます。
+![ボールが跳ね返った最初のコマ。上段に移したパラメータカードに重力と反発係数、右列にボールの高さが表示されている。](docs/screenshots/02-custom-layout-ja.png)
 
 ## 見本を試す
 
-[ボールの反発](https://roburon.github.io/game-debug-workbench/assets/web/demo.html) ／ [3レーンの配達](https://roburon.github.io/game-debug-workbench/assets/web/lane-demo.html)
+1. ボールの見本で「着地の直前」を選び、「パラメータ」の反発係数に `0.85` を入力します。
+2. 「イベントで自動停止」で「床に当たる」を選び、「発生まで進む」を押します。床に触れた瞬間、右列の「高さ」は `0.0 px` です。
+3. プレビューの「1コマ進む」を1回押すと、高さが `3.4 px` になります。「パラメータ」の見出しをつかんで上段に移すと、そのコマを保ったまま上の画像の配置を試せます。
 
-ボールの見本で「場面の切り替え」から「着地の直前」を選びます。「イベントで自動停止」で「床に当たる」を選び、「発生まで進む」を押すと、着地した瞬間で止まります。「1コマ進む」で反発の様子を追えます。長押しすると連続で進みます。
+<details>
+<summary>着地で停止した画面と、配達ゲームの画面を見る</summary>
 
-手元で試すときは、ダウンロードしたフォルダの `assets/web/demo.html` をブラウザで開いてください。2つの見本は同じJavaScriptとCSSを読み込みます。
+![ボールが床に触れて自動停止したところ。反発係数は0.85、高さは0.0 px。](docs/screenshots/01-ball-event-ja.png)
+
+配達ゲームでは、同じ盤面で「荷物の速さ」と「荷物の間隔」を調整できます。
+
+![配達ゲームで荷物を受け取る直前の画面。プレビューの隣に荷物の速さと間隔の調整欄がある。](docs/screenshots/03-three-lane-delivery-ja.png)
+
+</details>
+
+## 自分の作業に合わせる
+
+| やりたいこと | 盤面でできること |
+| --- | --- |
+| 操作しやすい配置にする | カードの見出しを別のカードの左右に置くと横並び、上下に置くと別の行になります。境目を引いて列幅を調整し、使わないカードは隠せます。 |
+| 同じ条件で調整を続ける | スライダーや数値欄で値を変え、場面・調整値・カード配置・プレビューサイズを「作業環境」にまとめて保存。次回は名前を選ぶだけで呼び出せます。 |
+| 不具合が起きた場面を渡す | 再現情報をコピーし、別の環境に貼り付けて復元できます。別作品のデータや互換性のない版は、状態を変える前に理由を表示します。 |
+| 同じ操作でA/Bを比べる | タップなどの入力を記録し、同じ開始状態・乱数条件から同じコマで再生します。操作のばらつきを抑えて調整値の違いを比較できます。 |
 
 ## スキルを入れる
 
-使うツールに合わせて、次のコマンドでリポジトリを取得します。すでに同名のスキルを入れている場合は、手元の変更を確認してから更新してください。
+使うツールに合わせて、どちらかを実行してください。
 
 **Codex**
 
@@ -30,18 +48,18 @@ git clone https://github.com/roburon/game-debug-workbench.git "$HOME/.agents/ski
 git clone https://github.com/roburon/game-debug-workbench.git "$HOME/.claude/skills/game-debug-workbench"
 ```
 
-インストールしたらゲームのプロジェクトで新しいセッションを開き、たとえば次のように依頼します。
+ゲームのプロジェクトで新しいセッションを開き、調べたい場面と変えたい値を伝えます。
 
-> game-debug-workbench を使って、ゲーム画面の横に調整パネルを追加して。着地した瞬間で止めて、重力を変えながら1コマずつ確認したい。
+> game-debug-workbench を使って、ゲームに開発用のデバッグ盤を追加して。着地した瞬間で止めて、重力とジャンプ力をプレビューの横で調整したい。
 
-Gitで取得したスキルは、そのフォルダで `git pull --ff-only` を実行すると更新できます。
+すでにGitで導入している場合は、スキルのフォルダで `git status` を確認し、`git pull --ff-only` で更新できます。手元で見本を試すときは `assets/web/demo.html` をブラウザで開いてください。
 
 ## 自分のゲームに組み込む
 
-最小構成は、プレビュー要素と表示したい状態を渡すだけです。コマ送りにはゲームの更新関数、イベント停止にはゲーム側からの通知をつなぎます。A/B比較を使う場合は、乱数を含む開始状態の保存・復元と、固定コマで入力を適用する処理も接続します。[最小構成と機能別の組み込み手順](references/integration.md)
+最小構成はプレビュー要素と状態を読み取る関数です。コマ送りには既存の更新ループ、自動停止にはゲーム側からのイベント通知をつなぎます。再現情報の復元には状態の保存・検証・読み込み、入力のA/B比較には乱数状態の復元と決めたコマで入力を適用する処理も必要です。2つの見本は同じJavaScriptとCSSを使い、ゲーム側の接続だけが異なります。[最小構成と機能別の組み込み手順](references/integration.md) · [ボールの実装](assets/web/demo.js) · [配達ゲームの実装](assets/web/lane-demo.js)
 
-ゲーム側の接続例は[ボールのコード](assets/web/demo.js)と[配達のコード](assets/web/lane-demo.js)で見られます。共通部品はフレームワークに依存せず、ゲームの更新ループを使います。
+共通の操作と見本はブラウザの優先言語に合わせて日本語・英語で表示されます。ゲームに言語設定がある場合は `mountWorkbench({ locale, ... })` に渡し、作品固有の場面名や調整項目にはゲーム側で翻訳を用意します。[表示言語の設定](references/integration.md#display-language)
 
 ## 利用条件
 
-MITライセンスで公開しています。商用利用・改変・再配布ができます。ソフトウェアのコピーや主要な部分を配布するときは、著作権表示と許諾文を同梱してください。[ライセンス全文](LICENSE)
+MITライセンスで公開しています。商用利用・改変・再配布ができます。ソフトウェアのコピーや主要な部分を配布するときは著作権表示と許諾文を同梱してください。[ライセンス全文](LICENSE)
