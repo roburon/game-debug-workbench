@@ -4,6 +4,20 @@
   const defaultRates = [0.25, 0.5, 1, 1.5, 2]
   const defaultRateRange = { min: 0.25, max: 2, step: 0.01 }
 
+  function resolveLocale(preferences) {
+    if (preferences == null || preferences === 'auto') {
+      preferences = [...(scope.navigator?.languages ?? []), scope.navigator?.language]
+    }
+    for (const preference of Array.isArray(preferences) ? preferences : [preferences]) {
+      if (typeof preference !== 'string') continue
+      const language = preference.trim().split('-')[0].toLowerCase()
+      if (language === 'ja' || language === 'en') return language
+    }
+    return 'en'
+  }
+
+  function browserText(ja, en) { return resolveLocale() === 'ja' ? ja : en }
+
   function supportsRate(value, rates, range) {
     if (!range) return Array.isArray(rates) && rates.includes(value)
     if (!Number.isFinite(value) || value < range.min || value > range.max) return false
@@ -24,14 +38,14 @@
       const { min, max, step } = rateRange
       if (![min, max, step].every(Number.isFinite) || min <= 0 || max <= min || step <= 0 ||
           ![max, ...rates].every(value => supportsRate(value, rates, rateRange))) {
-        throw new RangeError('再生速度の範囲・刻みと倍率ボタンの値を確認してください')
+        throw new RangeError(browserText('再生速度の範囲・刻みと倍率ボタンの値を確認してください', 'Check the playback speed range, step, and speed button values'))
       }
       rateRange = Object.freeze({ min, max, step })
     }
     if (!Number.isFinite(stepSeconds) || stepSeconds <= 0 ||
         !Number.isFinite(maxDeltaSeconds) || maxDeltaSeconds < stepSeconds ||
         !rates.includes(1) || rates.some(rate => !Number.isFinite(rate) || rate <= 0)) {
-      throw new RangeError('時間操作の設定が無効です')
+      throw new RangeError(browserText('時間操作の設定が無効です', 'Invalid playback controls configuration'))
     }
     let paused = false
     let rate = 1
@@ -41,7 +55,7 @@
     const historySeconds = history?.seconds ?? 5
     if (history && (!Number.isFinite(historySeconds) || historySeconds <= 0 ||
         typeof history.capture !== 'function' || typeof history.restore !== 'function')) {
-      throw new TypeError('巻き戻し履歴の設定が無効です')
+      throw new TypeError(browserText('巻き戻し履歴の設定が無効です', 'Invalid rewind history configuration'))
     }
     const capacity = history ? Math.min(3600, Math.max(1, Math.ceil(historySeconds / stepSeconds))) : 0
     const snapshots = new Array(capacity)
@@ -111,7 +125,7 @@
         paused = false
       },
       setRate(value) {
-        if (!supportsRate(value, rates, rateRange)) throw new RangeError('未対応の再生速度です')
+        if (!supportsRate(value, rates, rateRange)) throw new RangeError(browserText('未対応の再生速度です', 'Unsupported playback speed'))
         rate = value
       },
       advance(deltaSeconds, update) {
@@ -141,7 +155,7 @@
       ...(history ? { canRewind, rewind } : {}),
       reset,
       restoreState(state) {
-        if (!validClockState(state, { rates, rateRange })) throw new RangeError('保存した時計の状態が無効です')
+        if (!validClockState(state, { rates, rateRange })) throw new RangeError(browserText('保存した時計の状態が無効です', 'Invalid saved clock state'))
         reset()
         ticks = state.ticks
         rate = state.rate
@@ -156,25 +170,28 @@
     state: 'inspect', events: 'inspect',
     reproduction: 'save', replay: 'save', 'work-presets': 'save',
   }
-  const genreNames = { view: '表示', play: '操作', tune: '調整', inspect: '状態・ログ', save: '保存・再現' }
 
   function mountWorkbench({
     preview, clock, update, tuning = [], actions = [], actionsHint, actionsWhilePaused = false, readState,
     scenes = [], initialScene, sceneSaves, tuningPresets, viewports = [], reproduction, layout,
-    events = [], workPresets, replay,
+    events = [], workPresets, replay, locale,
   }) {
-    if (!preview?.parentNode) throw new TypeError('プレビューを先に配置してください')
-    if (typeof clock?.step === 'function' && typeof update !== 'function') throw new TypeError('ゲームの更新関数が必要です')
+    const resolvedLocale = resolveLocale(locale)
+    const t = (ja, en) => resolvedLocale === 'ja' ? ja : en
+    const genreNames = { view: t('表示', 'View'), play: t('操作', 'Play'), tune: t('調整', 'Tune'),
+      inspect: t('状態・ログ', 'State & logs'), save: t('保存・再現', 'Save & reproduce') }
+    if (!preview?.parentNode) throw new TypeError(t('プレビューを先に配置してください', 'Place the preview in the document first'))
+    if (typeof clock?.step === 'function' && typeof update !== 'function') throw new TypeError(t('ゲームの更新関数が必要です', 'A game update function is required'))
 
     if (sceneSaves && (typeof sceneSaves.capture !== 'function' || typeof sceneSaves.restore !== 'function')) {
-      throw new TypeError('場面の保存・復元関数が必要です')
+      throw new TypeError(t('場面の保存・復元関数が必要です', 'Scene capture and restore functions are required'))
     }
 
     if (layout && (typeof layout.storageKey !== 'string' || !layout.storageKey.trim())) {
-      throw new TypeError('カード配置に作品固有の保存キーが必要です')
+      throw new TypeError(t('カード配置に作品固有の保存キーが必要です', 'Card layout requires a storage key unique to this game'))
     }
     if (layout && !scope.GameDebugBoard) {
-      throw new Error('カード配置を使うには workbench-board.js を読み込んでください')
+      throw new Error(t('カード配置を使うには workbench-board.js を読み込んでください', 'Load workbench-board.js to use card layouts'))
     }
 
     const doc = preview.ownerDocument
@@ -196,7 +213,7 @@
       const genre = cardGenres[cardId]
       if (genre) {
         card.dataset.gdwGenre = genre
-        card.setAttribute('aria-description', 'ジャンル：' + genreNames[genre])
+        card.setAttribute('aria-description', t('ジャンル：', 'Category: ') + genreNames[genre])
         const tag = element('span', genreNames[genre])
         tag.className = 'gdw-genre-name'
         tag.setAttribute('aria-hidden', 'true')
@@ -311,16 +328,17 @@
     }
     const root = element('div')
     root.className = 'game-debug-workbench'
+    root.lang = resolvedLocale
     const controls = element('aside')
     controls.className = 'gdw-controls'
-    controls.setAttribute('aria-label', '調整')
+    controls.setAttribute('aria-label', t('調整', 'Tune'))
     const stage = element('div')
     stage.className = 'gdw-stage'
     const previewBody = element('div')
     previewBody.className = 'gdw-preview-body'
     const observer = element('aside')
     observer.className = 'gdw-observer'
-    observer.setAttribute('aria-label', 'デバッグ')
+    observer.setAttribute('aria-label', t('デバッグ', 'Debug'))
     root.append(stage, controls, observer)
 
     const controlsRefresh = []
@@ -340,10 +358,10 @@
     let board
     const metrics = element('dl')
     const values = new Map()
-    const statePanel = section('実行状態', 'state')
+    const statePanel = section(t('実行状態', 'Runtime state'), 'state')
     const history = element('ol')
-    const historyPanel = section('イベント履歴', 'events')
-    const historyCount = element('span', '0件')
+    const historyPanel = section(t('イベント履歴', 'Event history'), 'events')
+    const historyCount = element('span', t('0件', '0 events'))
     historyCount.className = 'gdw-history-count'
     historyPanel.querySelector('h2').append(historyCount)
     statePanel.append(metrics)
@@ -360,20 +378,20 @@
       if (repeat) {
         entries.shift()
         history.firstElementChild.remove()
-        message += '（' + repeatCount + '回）'
+        message += t('（' + repeatCount + '回）', ' (' + repeatCount + ' times)')
       }
       entries.unshift({ time, message: String(message) })
       if (entries.length > 20) entries.pop()
       const item = element('li')
       if (time !== null) {
-        const stamp = element('span', time.toFixed(2) + '秒')
+        const stamp = element('span', time.toFixed(2) + t('秒', 's'))
         stamp.className = 'gdw-log-time'
         item.append(stamp, ' ')
       }
       item.append(element('span', message))
       history.prepend(item)
       if (history.childElementCount > 20) history.lastElementChild.remove()
-      historyCount.textContent = entries.length + '件'
+      historyCount.textContent = t(entries.length + '件', entries.length + ' events')
     }
 
     function refresh() {
@@ -381,11 +399,11 @@
       const timing = clock?.state()
       if (cancelFrameHold && (loadingScene || applyingWork || !timing?.paused)) cancelFrameHold()
       const status = timing ? {
-        '状態': timing.paused ? '停止中' : '再生中',
-        'ゲーム内時刻': timing.time.toFixed(3) + '秒',
-        '更新回数': timing.ticks,
+        [t('状態', 'Status')]: timing.paused ? t('停止中', 'Paused') : t('再生中', 'Playing'),
+        [t('ゲーム内時刻', 'Game time')]: timing.time.toFixed(3) + t('秒', 's'),
+        [t('更新回数', 'Updates')]: timing.ticks,
       } : {}
-      if (currentScene) status['場面'] = currentScene.label
+      if (currentScene) status[t('場面', 'Scene')] = currentScene.label
       const rows = Object.entries({ ...status, ...readState?.() })
       statePanel.hidden = rows.length === 0
       const active = new Set(rows.map(([label]) => label))
@@ -411,12 +429,12 @@
     function setPaused(hold) {
       if (loadingScene || typeof clock?.setPaused !== 'function' || clock.state().paused === hold) return
       clock.setPaused(hold)
-      record(hold ? '停止' : '再開')
+      record(hold ? t('停止', 'Pause') : t('再開', 'Resume'))
       refresh()
     }
     function advanceFrame() {
       if (loadingScene || !clock.state().paused) return
-      if (clock.step(update)) record('1コマ進む', 'step')
+      if (clock.step(update)) record(t('1コマ進む', 'Next frame'), 'step')
       refresh()
     }
     function frameButton(label, move) {
@@ -428,7 +446,7 @@
         pointerHandled = false
       })
       item.className = 'gdw-frame-button'
-      item.title = label + '（長押しで連続）'
+      item.title = label + t('（長押しで連続）', ' (hold to repeat)')
 
       function begin(event) {
         const pointer = event.type === 'pointerdown'
@@ -493,22 +511,22 @@
       return item
     }
     if (clock) {
-      const panel = section('時間操作', 'time')
+      const panel = section(t('時間操作', 'Playback controls'), 'time')
       const togglePause = () => setPaused(!clock.state().paused)
       const rewindFrame = () => {
         if (isLocked() || !clock.canRewind()) return
         replayPanel?.clearPending()
-        if (clock.rewind()) record('1コマ戻る', 'rewind')
+        if (clock.rewind()) record(t('1コマ戻る', 'Previous frame'), 'rewind')
         refresh()
       }
       const timeViews = []
       function timeButtons() {
         const buttons = element('div')
         buttons.className = 'gdw-buttons'
-        const pause = typeof clock.setPaused === 'function' ? button('停止', togglePause) : null
-        const step = typeof clock.step === 'function' ? frameButton('1コマ進む', advanceFrame) : null
+        const pause = typeof clock.setPaused === 'function' ? button(t('停止', 'Pause'), togglePause) : null
+        const step = typeof clock.step === 'function' ? frameButton(t('1コマ進む', 'Next frame'), advanceFrame) : null
         const rewind = typeof clock.rewind === 'function' && typeof clock.canRewind === 'function'
-          ? frameButton('1コマ戻る', rewindFrame) : null
+          ? frameButton(t('1コマ戻る', 'Previous frame'), rewindFrame) : null
         if (pause) { pause.dataset.gdwTime = 'pause'; buttons.append(pause) }
         if (rewind) { rewind.dataset.gdwTime = 'rewind'; buttons.append(rewind) }
         if (step) { step.dataset.gdwTime = 'step'; buttons.append(step) }
@@ -519,7 +537,7 @@
       const previewTime = element('div')
       previewTime.className = 'gdw-preview-time'
       previewTime.setAttribute('role', 'group')
-      previewTime.setAttribute('aria-label', 'プレビューの時間操作')
+      previewTime.setAttribute('aria-label', t('プレビューの時間操作', 'Preview playback controls'))
       const previewTiming = element('p')
       previewTiming.className = 'gdw-preview-timing'
       previewTiming.dataset.gdwPreviewStatus = ''
@@ -528,8 +546,8 @@
       const rates = element('div')
       rates.className = 'gdw-rates'
       rates.setAttribute('role', 'group')
-      rates.setAttribute('aria-label', '再生速度')
-      const speedCaption = element('span', '再生速度')
+      rates.setAttribute('aria-label', t('再生速度', 'Playback speed'))
+      const speedCaption = element('span', t('再生速度', 'Playback speed'))
       speedCaption.setAttribute('aria-hidden', 'true')
       const scale = element('div')
       scale.className = 'gdw-rate-scale'
@@ -543,7 +561,7 @@
       slider.min = range?.min ?? 0
       slider.max = range?.max ?? rateOptions.length - 1
       slider.step = range?.step ?? 1
-      slider.setAttribute('aria-label', '再生速度')
+      slider.setAttribute('aria-label', t('再生速度', 'Playback speed'))
 
       function selectRate(value) {
         if (loadingScene) return false
@@ -554,18 +572,18 @@
       }
 
       function setAndLogRate(value) {
-        if (selectRate(value)) record(value + '倍速')
+        if (selectRate(value)) record(value + t('倍速', '× speed'))
       }
-      const number = numberEditor('再生速度（倍）', range?.min ?? (rateOptions.length ? Math.min(...rateOptions) : 1),
+      const number = numberEditor(t('再生速度（倍）', 'Playback speed (×)'), range?.min ?? (rateOptions.length ? Math.min(...rateOptions) : 1),
         range?.max ?? (rateOptions.length ? Math.max(...rateOptions) : 1), range?.step ?? 'any', setAndLogRate,
-        value => (range || rateOptions.includes(value)) ? '' : rateOptions.join('、') + ' 倍から選んでください')
+        value => (range || rateOptions.includes(value)) ? '' : t(rateOptions.join('、') + ' 倍から選んでください', 'Choose a speed from ' + rateOptions.join(', ') + '×'))
       const line = element('div')
       line.className = 'gdw-slider-line'
       const entry = element('span')
       entry.className = 'gdw-rate-entry'
       entry.append(number.input, '×')
       slider.addEventListener('input', () => selectRate(range ? slider.valueAsNumber : rateOptions[slider.valueAsNumber]))
-      slider.addEventListener('change', () => record(clock.state().rate + '倍速'))
+      slider.addEventListener('change', () => record(clock.state().rate + t('倍速', '× speed')))
       if (range || rateOptions.length > 1) {
         line.append(slider, entry)
         scale.append(line)
@@ -574,10 +592,10 @@
       const choices = element('div')
       choices.className = 'gdw-rate-choices'
       choices.setAttribute('role', 'group')
-      choices.setAttribute('aria-label', 'よく使う倍率')
+      choices.setAttribute('aria-label', t('よく使う倍率', 'Common speeds'))
       const rateButtons = rateOptions.map(value => {
         const choice = button(value + '×', () => setAndLogRate(value))
-        choice.setAttribute('aria-label', value + '倍')
+        choice.setAttribute('aria-label', value + t('倍', '×'))
         choices.append(choice)
         return choice
       })
@@ -602,7 +620,7 @@
       controls.append(panel)
       controlsRefresh.push(() => {
         const state = clock.state()
-        const stateName = state.paused ? '停止中' : '再生中'
+        const stateName = state.paused ? t('停止中', 'Paused') : t('再生中', 'Playing')
         if (timeState.textContent !== stateName) {
           timeState.textContent = stateName
           timeState.dataset.paused = String(state.paused)
@@ -610,7 +628,7 @@
         for (const { pause, step, rewind } of timeViews) {
           if (pause) {
             if (pause.dataset.paused !== String(state.paused)) {
-              pause.textContent = state.paused ? '再開' : '停止'
+              pause.textContent = state.paused ? t('再開', 'Resume') : t('停止', 'Pause')
               pause.dataset.paused = String(state.paused)
             }
             pause.disabled = loadingScene
@@ -618,14 +636,14 @@
           if (step) step.disabled = loadingScene || !state.paused
           if (rewind) rewind.disabled = isLocked() || !clock.canRewind()
         }
-        const timingLabel = [state.paused ? '停止中' : '再生中',
-          Number.isFinite(state.time) ? state.time.toFixed(3) + '秒' : '',
-          Number.isFinite(state.ticks) ? state.ticks + 'コマ' : ''].filter(Boolean).join(' · ')
+        const timingLabel = [state.paused ? t('停止中', 'Paused') : t('再生中', 'Playing'),
+          Number.isFinite(state.time) ? state.time.toFixed(3) + t('秒', 's') : '',
+          Number.isFinite(state.ticks) ? t(state.ticks + 'コマ', state.ticks + ' frames') : ''].filter(Boolean).join(' · ')
         if (previewTiming.textContent !== timingLabel) previewTiming.textContent = timingLabel
         slider.disabled = loadingScene
         number.sync(state.rate, loadingScene)
         for (const choice of rateButtons) choice.disabled = loadingScene || (!range && rateOptions.length === 1)
-        const rateLabel = state.rate + '倍'
+        const rateLabel = state.rate + t('倍', '×')
         if (slider.getAttribute('aria-valuetext') === rateLabel) return
         const index = rateOptions.indexOf(state.rate)
         slider.value = String(range ? state.rate : index)
@@ -667,8 +685,8 @@
           control.write(values[key])
         }
       } catch {
-        if (undo()) throw new Error('適用に失敗したため、元の値に戻しました')
-        throw new TuningRollbackError('適用に失敗しました。現在の値を確認してください')
+        if (undo()) throw new Error(t('適用に失敗したため、元の値に戻しました', 'Could not apply the values; the previous values have been restored'))
+        throw new TuningRollbackError(t('適用に失敗しました。現在の値を確認してください', 'Could not apply the values. Check the current values'))
       }
       return undo
     }
@@ -685,14 +703,14 @@
         if (!item || typeof item !== 'object' || visited.has(item) ||
             (!Array.isArray(item) && Object.getPrototypeOf(item) !== null &&
               (Object.prototype.toString.call(item) !== '[object Object]' || Object.getPrototypeOf(item).constructor?.name !== 'Object'))) {
-          throw new TypeError('復元データは有限の数値を含むJSONにしてください')
+          throw new TypeError(t('復元データは有限の数値を含むJSONにしてください', 'Restore data must be JSON with finite numbers'))
         }
         visited.add(item)
         if (Array.isArray(item)) {
           for (let index = 0; index < item.length; index += 1) check(item[index])
         } else {
           for (const [key, entry] of Object.entries(item)) {
-            if (['__proto__', 'prototype', 'constructor'].includes(key)) throw new TypeError('復元データに使えない項目があります')
+            if (['__proto__', 'prototype', 'constructor'].includes(key)) throw new TypeError(t('復元データに使えない項目があります', 'Restore data contains a prohibited property'))
             check(entry)
           }
         }
@@ -703,31 +721,31 @@
     }
 
     function validateRestorePoint(point) {
-      if (!canTransferState) throw new Error('この作品は復元データに対応していません')
+      if (!canTransferState) throw new Error(t('この作品は復元データに対応していません', 'This game does not support restore data'))
       const candidate = cloneRestoreData(point)
       if (candidate?.type !== 'game-debug-restore-point' || candidate.version !== 1) {
-        throw new Error('復元用のJSONを貼り付けてください。診断情報だけでは復元できません')
+        throw new Error(t('復元用のJSONを貼り付けてください。診断情報だけでは復元できません', 'Paste restore JSON. Diagnostic information alone cannot restore the state'))
       }
-      if (candidate.gameId !== sceneSaves.gameId) throw new Error('別の作品の復元データです')
-      if (candidate.stateVersion !== sceneSaves.stateVersion) throw new Error('作品の保存データの版が一致しません')
+      if (candidate.gameId !== sceneSaves.gameId) throw new Error(t('別の作品の復元データです', 'This restore data belongs to a different game'))
+      if (candidate.stateVersion !== sceneSaves.stateVersion) throw new Error(t('作品の保存データの版が一致しません', 'The game save version does not match'))
       if (candidate.scene !== null && (!candidate.scene || typeof candidate.scene.id !== 'string' || !candidate.scene.id ||
-          typeof candidate.scene.label !== 'string' || !candidate.scene.label.trim())) throw new Error('場面の情報が無効です')
+          typeof candidate.scene.label !== 'string' || !candidate.scene.label.trim())) throw new Error(t('場面の情報が無効です', 'Invalid scene information'))
       if (!candidate.tuning || Array.isArray(candidate.tuning) || !validTuning(candidate.tuning) ||
-          Object.keys(candidate.tuning).length !== tuning.length) throw new Error('調整値が現在の設定と一致しません')
+          Object.keys(candidate.tuning).length !== tuning.length) throw new Error(t('調整値が現在の設定と一致しません', 'Tuning values do not match the current configuration'))
       if (clock) {
         if (typeof clock.restoreState !== 'function' || !validClockState(candidate.clock, clock) ||
             typeof candidate.clock.paused !== 'boolean' || !Number.isFinite(candidate.clock.time) || candidate.clock.time < 0) {
-          throw new Error('時計の情報が現在の設定と一致しません')
+          throw new Error(t('時計の情報が現在の設定と一致しません', 'Clock data does not match the current configuration'))
         }
-      } else if (candidate.clock !== null) throw new Error('この作品では時計を復元できません')
+      } else if (candidate.clock !== null) throw new Error(t('この作品では時計を復元できません', 'This game cannot restore the clock'))
       if (!Object.hasOwn(candidate, 'state') || sceneSaves.validateState(cloneRestoreData(candidate.state)) !== true) {
-        throw new Error('作品の状態が無効です')
+        throw new Error(t('作品の状態が無効です', 'Invalid game state'))
       }
       return true
     }
 
     function captureRestorePoint() {
-      if (!canTransferState) throw new Error('この作品は復元データに対応していません')
+      if (!canTransferState) throw new Error(t('この作品は復元データに対応していません', 'This game does not support restore data'))
       const timing = clock?.state() ?? null
       const point = cloneRestoreData({
         type: 'game-debug-restore-point', version: 1,
@@ -741,7 +759,7 @@
     }
 
     async function applyRestorePoint(point) {
-      if (loadingScene) throw new Error('別の場面を読み込み中です')
+      if (loadingScene) throw new Error(t('別の場面を読み込み中です', 'Another scene is loading'))
       validateRestorePoint(point)
       const candidate = cloneRestoreData(point)
       const previous = captureRestorePoint()
@@ -770,8 +788,8 @@
           }
         } catch { restored = false }
         currentScene = previousScene
-        if (!restored) throw new TuningRollbackError('復元に失敗しました。元の状態に戻せなかったため、現在の状態を確認してください')
-        throw new Error('復元に失敗したため、元の状態に戻しました', { cause: error })
+        if (!restored) throw new TuningRollbackError(t('復元に失敗しました。元の状態に戻せなかったため、現在の状態を確認してください', 'Restore failed and the previous state could not be recovered. Check the current state'))
+        throw new Error(t('復元に失敗したため、元の状態に戻しました', 'Restore failed; the previous state has been recovered'), { cause: error })
       } finally {
         loadingScene = false
         refresh()
@@ -779,18 +797,18 @@
     }
 
     if (scenes.length || sceneSaves) {
-      const panel = section('場面の切り替え', 'scenes')
+      const panel = section(t('場面の切り替え', 'Scenes'), 'scenes')
       const choices = element('div')
       choices.className = 'gdw-choice-row'
-      const select = labeledSelect(choices, '読み込む場面', [
-        { id: '', label: '場面を選ぶ' },
+      const select = labeledSelect(choices, t('読み込む場面', 'Scene to load'), [
+        { id: '', label: t('場面を選ぶ', 'Choose a scene') },
         ...scenes,
       ])
       selectScene = loadScene
       select.options[0].disabled = true
       select.value = currentScene?.id ?? ''
       select.addEventListener('change', () => loadScene(available.get(select.value)))
-      const restart = button('読み込み直す', () => loadScene(currentScene))
+      const restart = button(t('読み込み直す', 'Reload'), () => loadScene(currentScene))
       choices.append(restart)
       cardHeader(panel, choices)
       if (sceneSaves) addSceneSaveForm()
@@ -807,7 +825,7 @@
         replayPanel?.clearPending()
         const wasPaused = clock?.state().paused
         loadingScene = true
-        status.textContent = '読み込み中…'
+        status.textContent = t('読み込み中…', 'Loading…')
         clock?.setPaused(true)
         refresh()
         try {
@@ -818,14 +836,14 @@
             clock.setPaused(true)
           }
           currentScene = scene
-          record(scene.label + 'を読み込む')
+          record(t(scene.label + 'を読み込む', 'Load ' + scene.label))
           status.textContent = ''
           return true
         } catch (error) {
           if (clock) clock.setPaused(wasPaused)
           status.textContent = error instanceof TuningRollbackError
-            ? '場面を読み込めませんでした。現在の調整値を確認してください'
-            : '場面を読み込めませんでした'
+            ? t('場面を読み込めませんでした。現在の調整値を確認してください', 'Could not load the scene. Check the current tuning values')
+            : t('場面を読み込めませんでした', 'Could not load the scene')
         } finally {
           loadingScene = false
           select.value = currentScene?.id ?? ''
@@ -837,31 +855,31 @@
         const canRestoreClock = typeof clock?.restoreState === 'function'
         const storagePrefix = sceneSaves.storageKey ? sceneSaves.storageKey + '.scene.' : ''
         const saved = element('optgroup')
-        saved.label = '保存した場面'
+        saved.label = t('保存した場面', 'Saved scenes')
         const dialog = element('dialog')
         dialog.className = 'gdw-scene-save'
-        dialog.setAttribute('aria-label', '今の場面を保存')
-        const trigger = button('場面を保存…', () => {
+        dialog.setAttribute('aria-label', t('今の場面を保存', 'Save current scene'))
+        const trigger = button(t('場面を保存…', 'Save scene…'), () => {
           dialogStatus.textContent = ''
           dialog.showModal()
           name.focus()
         })
         trigger.setAttribute('aria-haspopup', 'dialog')
         const form = element('form')
-        const label = element('label', '保存名')
+        const label = element('label', t('保存名', 'Save name'))
         const name = element('input')
         name.type = 'text'
         name.required = true
         name.maxLength = 60
         name.autocomplete = 'off'
         label.append(name)
-        const save = element('button', '保存')
+        const save = element('button', t('保存', 'Save'))
         save.type = 'submit'
         const actions = element('div')
         actions.className = 'gdw-action-buttons'
-        actions.append(save, button('キャンセル', () => dialog.close()))
+        actions.append(save, button(t('キャンセル', 'Cancel'), () => dialog.close()))
         form.append(label, actions)
-        dialog.append(element('h2', '今の場面を保存'), form)
+        dialog.append(element('h2', t('今の場面を保存', 'Save current scene')), form)
         const dialogStatus = notice(dialog)
         choices.append(trigger)
         panel.append(dialog)
@@ -890,11 +908,11 @@
           if (isLocked()) return
           const label = name.value.trim()
           if (!label) {
-            dialogStatus.textContent = '保存名を入力してください'
+            dialogStatus.textContent = t('保存名を入力してください', 'Enter a save name')
             return
           }
           if ([...available.values()].some(scene => scene.label === label)) {
-            dialogStatus.textContent = '同じ名前の場面があります。別の名前で保存してください'
+            dialogStatus.textContent = t('同じ名前の場面があります。別の名前で保存してください', 'A scene with this name already exists. Use a different name')
             return
           }
 
@@ -926,13 +944,13 @@
             select.value = id
             name.value = ''
             dialog.close()
-            record(label + 'を保存')
+            record(t(label + 'を保存', 'Save ' + label))
             status.textContent = persisted
-              ? '「' + label + '」を保存しました'
-              : '「' + label + '」はこのページを開いている間だけ使えます'
+              ? t('「' + label + '」を保存しました', 'Saved “' + label + '”')
+              : t('「' + label + '」はこのページを開いている間だけ使えます', '“' + label + '” is available while this page stays open')
             refresh()
           } catch {
-            dialogStatus.textContent = '場面を保存できませんでした'
+            dialogStatus.textContent = t('場面を保存できませんでした', 'Could not save the scene')
           }
         })
 
@@ -945,15 +963,15 @@
               const timing = scene.savedClock
               if ((Object.hasOwn(entry, 'gameId') && entry.gameId !== sceneSaves.gameId) ||
                   (Object.hasOwn(entry, 'stateVersion') && entry.stateVersion !== sceneSaves.stateVersion)) {
-                throw new Error('保存した作品または保存データの版が一致しません')
+                throw new Error(t('保存した作品または保存データの版が一致しません', 'The saved game or save version does not match'))
               }
               if (!validTuning(entry.tuning) || (timing && !validClockState(timing, clock))) {
-                throw new Error('保存した値が現在の設定と一致しません')
+                throw new Error(t('保存した値が現在の設定と一致しません', 'Saved values do not match the current configuration'))
               }
               const state = JSON.parse(JSON.stringify(entry.state))
               if (Object.hasOwn(entry, 'stateVersion') && typeof sceneSaves.validateState === 'function' &&
                   sceneSaves.validateState(cloneRestoreData(state)) !== true) {
-                throw new Error('保存した作品の状態が無効です')
+                throw new Error(t('保存した作品の状態が無効です', 'Invalid saved game state'))
               }
               const undo = writeTuning(entry.tuning)
               try {
@@ -983,7 +1001,7 @@
     }
 
     if (tuning.length) {
-      const panel = section('パラメータ', 'tuning')
+      const panel = section(t('パラメータ', 'Parameters'), 'tuning')
       for (const control of tuning) {
         const row = element('div', control.label)
         row.className = 'gdw-tuning'
@@ -995,8 +1013,11 @@
         input.step = control.step ?? 1
         input.setAttribute('aria-label', control.label)
         const format = control.format ?? String
-        const logChange = () => record(control.label + 'を' + format(control.read()) + 'に変更')
-        const number = numberEditor(control.label + '（数値入力）', input.min, input.max, input.step, value => {
+        const logChange = () => {
+          const value = format(control.read())
+          record(t(control.label + 'を' + value + 'に変更', 'Set ' + control.label + ' to ' + value))
+        }
+        const number = numberEditor(control.label + t('（数値入力）', ' (numeric input)'), input.min, input.max, input.step, value => {
           if (isLocked()) return
           control.write(value)
           refresh()
@@ -1036,9 +1057,9 @@
       const slots = ['A', 'B']
 
       const storageKey = tuningPresets.storageKey
-      const panel = section('調整値の保存・比較', 'tuning-presets')
+      const panel = section(t('調整値の保存・比較', 'Save & compare tuning'), 'tuning-presets')
       const compare = element('details')
-      compare.append(element('summary', 'A / B の違い'))
+      compare.append(element('summary', t('A / B の違い', 'A / B differences')))
       const differences = element('ul')
       compare.append(differences)
       const applyButtons = new Map()
@@ -1057,27 +1078,27 @@
       for (const slot of slots) {
         const row = element('div')
         row.className = 'gdw-buttons gdw-profile-row'
-        const save = button(slot + 'に保存', () => {
+        const save = button(t(slot + 'に保存', 'Save to ' + slot), () => {
           profiles[slot] = readTuning()
           syncProfiles()
-          record(slot + 'に調整値を保存')
-          status.textContent = slot + 'に保存しました'
+          record(t(slot + 'に調整値を保存', 'Save tuning to ' + slot))
+          status.textContent = t(slot + 'に保存しました', 'Saved to ' + slot)
           if (storageKey) {
             try {
               doc.defaultView.localStorage.setItem(storageKey, JSON.stringify(profiles))
             } catch {
-              status.textContent = 'このページを開いている間、' + slot + 'に保存します'
+              status.textContent = t('このページを開いている間、' + slot + 'に保存します', 'Saved to ' + slot + ' while this page stays open')
             }
           }
         })
-        const apply = button(slot + 'を適用', () => applyTuning(profiles[slot], slot + 'を適用'))
+        const apply = button(t(slot + 'を適用', 'Apply ' + slot), () => applyTuning(profiles[slot], t(slot + 'を適用', 'Apply ' + slot)))
         applyButtons.set(slot, apply)
         saveButtons.push(save)
         row.append(save, apply)
         panel.append(row)
       }
 
-      const reset = button('既定値に戻す', () => applyTuning(defaults, '既定値に戻す'))
+      const reset = button(t('既定値に戻す', 'Reset to defaults'), () => applyTuning(defaults, t('既定値に戻す', 'Reset to defaults')))
       reset.className = 'gdw-reset-tuning'
       panel.append(reset, compare)
       const status = notice(panel)
@@ -1100,9 +1121,9 @@
             const format = control.format ?? String
             differences.append(element('li', control.label + '　A ' + format(a) + ' / B ' + format(b)))
           }
-          if (!differences.childElementCount) differences.append(element('li', 'AとBは同じ値です'))
+          if (!differences.childElementCount) differences.append(element('li', t('AとBは同じ値です', 'A and B have the same values')))
         } else {
-          differences.append(element('li', 'AとBの両方を保存すると比較できます'))
+          differences.append(element('li', t('AとBの両方を保存すると比較できます', 'Save both A and B to compare them')))
         }
         for (const [slot, apply] of applyButtons) apply.disabled = !profiles[slot]
       }
@@ -1110,7 +1131,7 @@
       function applyTuning(values, label) {
         try {
           writeTuning(values)
-          status.textContent = label + '（完了）'
+          status.textContent = label + t('（完了）', ' (done)')
           record(label)
         } catch (error) {
           status.textContent = error.message
@@ -1120,7 +1141,7 @@
     }
 
     if (actions.length && (!actionsWhilePaused || clock)) {
-      const panel = section('手動操作', 'actions')
+      const panel = section(t('手動操作', 'Manual actions'), 'actions')
       const buttons = element('div')
       buttons.className = 'gdw-action-buttons'
       if (actionsHint) {
@@ -1132,7 +1153,7 @@
       const pauseHere = actionsWhilePaused && typeof clock?.setPaused === 'function'
       let lastAction
       if (pauseHere) {
-        const pause = button('停止して試す', () => setPaused(true))
+        const pause = button(t('停止して試す', 'Pause to try'), () => setPaused(true))
         buttons.append(pause)
         controlsRefresh.push(() => { pause.disabled = isLocked() || clock.state().paused })
       }
@@ -1153,14 +1174,14 @@
       }
       if (pauseHere) {
         if (typeof clock.step === 'function') {
-          const step = frameButton('1コマ進む', advanceFrame)
+          const step = frameButton(t('1コマ進む', 'Next frame'), advanceFrame)
           buttons.append(step)
           controlsRefresh.push(() => { step.disabled = isLocked() || !clock.state().paused })
         }
         const feedback = notice(panel)
         controlsRefresh.push(() => {
           const message = lastAction && entries[0] === lastAction ? lastAction.message :
-            clock.state().paused ? '停止中' : '再生中'
+            clock.state().paused ? t('停止中', 'Paused') : t('再生中', 'Playing')
           if (feedback.textContent !== message) feedback.textContent = message
         })
       }
@@ -1174,10 +1195,10 @@
       viewport.className = 'gdw-viewport'
       stage.classList.add('gdw-stage-scroll')
       stage.setAttribute('role', 'region')
-      stage.setAttribute('aria-label', 'プレビュー')
+      stage.setAttribute('aria-label', t('プレビュー', 'Preview'))
       previewHeader = element('div')
       previewHeader.className = 'gdw-preview-header'
-      const select = labeledSelect(previewHeader, '表示サイズ', [{ id: '', label: '自動' }, ...viewports])
+      const select = labeledSelect(previewHeader, t('表示サイズ', 'Preview size'), [{ id: '', label: t('自動', 'Auto') }, ...viewports])
       stage.prepend(previewHeader)
       setViewport = id => {
         select.value = id
@@ -1190,7 +1211,7 @@
       }
       select.addEventListener('change', () => {
         setViewport(select.value)
-        record('表示サイズを' + (currentViewport?.label ?? '自動') + 'に変更')
+        record(t('表示サイズを' + (currentViewport?.label ?? t('自動', 'Auto')) + 'に変更', 'Set preview size to ' + (currentViewport?.label ?? 'Auto')))
       })
     }
 
@@ -1212,12 +1233,12 @@
     }
 
     if (reproduction) {
-      const panel = section('再現情報', 'reproduction')
+      const panel = section(t('再現情報', 'Reproduction data'), 'reproduction')
       const manual = element('textarea')
       manual.readOnly = true
       manual.hidden = true
       manual.rows = 6
-      manual.setAttribute('aria-label', '再現情報のJSON')
+      manual.setAttribute('aria-label', t('再現情報のJSON', 'Reproduction JSON'))
       const status = notice(panel)
       let copying = false
       function copyButton(label, includeRestorePoint) {
@@ -1231,15 +1252,15 @@
             refresh()
             try {
               await doc.defaultView.navigator.clipboard.writeText(payload)
-              status.textContent = includeRestorePoint ? 'コピーしました' : '診断情報をコピーしました'
+              status.textContent = includeRestorePoint ? t('コピーしました', 'Copied') : t('診断情報をコピーしました', 'Diagnostic information copied')
             } catch {
               manual.value = payload
               manual.hidden = false
               manual.focus()
               manual.select()
-              status.textContent = '選択したJSONをコピーできます'
+              status.textContent = t('選択したJSONをコピーできます', 'Copy the selected JSON')
             }
-          } catch (error) { status.textContent = '情報を作成できませんでした。' + error.message }
+          } catch (error) { status.textContent = t('情報を作成できませんでした。', 'Could not create the information. ') + error.message }
           finally {
             copying = false
             refresh()
@@ -1249,33 +1270,33 @@
         controlsRefresh.push(() => { trigger.disabled = copying || isLocked() })
         return trigger
       }
-      panel.insertBefore(copyButton(canTransferState ? '再現情報をコピー' : '診断情報をコピー', canTransferState), status)
+      panel.insertBefore(copyButton(canTransferState ? t('再現情報をコピー', 'Copy reproduction data') : t('診断情報をコピー', 'Copy diagnostics'), canTransferState), status)
       panel.append(manual)
       if (canTransferState) {
-        const diagnostic = copyButton('診断情報だけをコピー', false)
+        const diagnostic = copyButton(t('診断情報だけをコピー', 'Copy diagnostics only'), false)
         panel.insertBefore(diagnostic, status)
         const disclosure = element('details')
-        disclosure.append(element('summary', 'JSONを貼り付けて復元'))
+        disclosure.append(element('summary', t('JSONを貼り付けて復元', 'Paste JSON to restore')))
         const input = element('textarea')
         input.rows = 6
-        input.setAttribute('aria-label', '復元するJSON')
-        input.placeholder = '再現情報のJSONを貼り付ける'
-        const restore = button('貼り付けて復元', async () => {
+        input.setAttribute('aria-label', t('復元するJSON', 'JSON to restore'))
+        input.placeholder = t('再現情報のJSONを貼り付ける', 'Paste reproduction JSON')
+        const restore = button(t('貼り付けて復元', 'Paste & restore'), async () => {
           if (isLocked()) return
           restore.disabled = true
           try {
             const information = JSON.parse(input.value)
             const point = information?.restorePoint ?? information
             await applyRestorePoint(point)
-            record('貼り付けた状態を復元')
-            status.textContent = '貼り付けた状態を復元しました（停止中）'
+            record(t('貼り付けた状態を復元', 'Restore pasted state'))
+            status.textContent = t('貼り付けた状態を復元しました（停止中）', 'Restored the pasted state (paused)')
           } catch (error) {
-            status.textContent = error instanceof SyntaxError ? 'JSONを読み取れませんでした。現在の状態は変えていません' : error.message
+            status.textContent = error instanceof SyntaxError ? t('JSONを読み取れませんでした。現在の状態は変えていません', 'Could not parse the JSON. The current state is unchanged') : error.message
           } finally {
             restore.disabled = isLocked()
           }
         })
-        const help = element('p', '復元すると場面と調整値が切り替わります。')
+        const help = element('p', t('復元すると場面と調整値が切り替わります。', 'Restoring changes the scene and tuning values.'))
         help.className = 'gdw-save-scope'
         disclosure.append(help, input, restore)
         panel.append(disclosure)
@@ -1291,10 +1312,10 @@
     let stopOn = ''
     let eventStatus
     if (events.length && typeof clock?.setPaused === 'function') {
-      const panel = section('イベントで自動停止', 'breakpoints')
+      const panel = section(t('イベントで自動停止', 'Pause on event'), 'breakpoints')
       const choices = element('div')
       choices.className = 'gdw-choice-row'
-      const select = labeledSelect(choices, '停止条件', [{ id: '', label: '自動停止しない' }, ...events])
+      const select = labeledSelect(choices, t('停止条件', 'Pause condition'), [{ id: '', label: t('自動停止しない', 'Do not pause automatically') }, ...events])
       cardHeader(panel, choices)
       select.addEventListener('change', () => {
         if (seeking) clock.setPaused(true)
@@ -1304,12 +1325,12 @@
         refresh()
       })
       let seeking = false
-      const seek = typeof clock.seekEvent === 'function' && button('発生まで進む', () => {
+      const seek = typeof clock.seekEvent === 'function' && button(t('発生まで進む', 'Advance to event'), () => {
         seeking = true
-        eventStatus.textContent = '「' + eventNames.get(stopOn) + '」の発生まで進めています'
+        eventStatus.textContent = t('「' + eventNames.get(stopOn) + '」の発生まで進めています', 'Advancing until “' + eventNames.get(stopOn) + '” occurs')
         clock.seekEvent(() => {
           seeking = false
-          eventStatus.textContent = 'ゲーム内で60秒進めても発生しなかったため、停止しました'
+          eventStatus.textContent = t('ゲーム内で60秒進めても発生しなかったため、停止しました', 'Paused because the event did not occur within 60 seconds of game time')
           refresh()
         })
         refresh()
@@ -1320,7 +1341,7 @@
       controlsRefresh.push(() => {
         if (seeking && clock.state().paused) {
           seeking = false
-          eventStatus.textContent = '早送りを停止しました'
+          eventStatus.textContent = t('早送りを停止しました', 'Fast forward stopped')
         }
         select.disabled = isLocked()
         if (seek) seek.disabled = isLocked() || !stopOn || seeking
@@ -1334,28 +1355,28 @@
         cancelFrameHold?.()
         clock.setPaused(true)
         refresh()
-        eventStatus.textContent = '「' + eventNames.get(id) + '」で停止しました'
+        eventStatus.textContent = t('「' + eventNames.get(id) + '」で停止しました', 'Paused at “' + eventNames.get(id) + '”')
       }
     }
 
     let workShortcut
     if (workPresets) addWorkPresets()
     function addWorkPresets() {
-      if (!workPresets.storageKey?.trim()) throw new TypeError('作業プリセットに作品固有の保存キーが必要です')
+      if (!workPresets.storageKey?.trim()) throw new TypeError(t('作業プリセットに作品固有の保存キーが必要です', 'Workspace presets require a storage key unique to this game'))
       const prefix = workPresets.storageKey + '.work.'
       const presets = new Map()
       const persisted = new Set()
-      const panel = section('作業環境', 'work-presets')
+      const panel = section(t('作業環境', 'Workspace'), 'work-presets')
       const parts = [
-        (canTransferState || scenes.length) && '場面', tuning.length && '調整値',
-        layout && 'カード配置', viewports.length && '表示サイズ',
+        (canTransferState || scenes.length) && t('場面', 'Scene'), tuning.length && t('調整値', 'Tuning'),
+        layout && t('カード配置', 'Card layout'), viewports.length && t('表示サイズ', 'Preview size'),
       ].filter(Boolean)
       if (parts.length) {
-        const scope = element('p', parts.join('・') + 'をまとめて保存')
+        const scope = element('p', t(parts.join('・') + 'をまとめて保存', 'Save ' + parts.join(', ') + ' together'))
         scope.className = 'gdw-save-scope'
         panel.append(scope)
       }
-      const select = labeledSelect(panel, '保存した作業環境', [{ id: '', label: '選んで読み込む' }])
+      const select = labeledSelect(panel, t('保存した作業環境', 'Saved workspace'), [{ id: '', label: t('選んで読み込む', 'Choose to load') }])
       function add(name, value) {
         presets.set(name, value)
         const option = element('option', name)
@@ -1378,31 +1399,31 @@
         }
       } catch {}
 
-      const label = element('label', '作業名')
+      const label = element('label', t('作業名', 'Workspace name'))
       label.className = 'gdw-select'
       const name = element('input')
       name.maxLength = 60
       label.append(name)
       const form = element('form')
-      const save = element('button', '作業環境を保存')
+      const save = element('button', t('作業環境を保存', 'Save workspace'))
       save.type = 'submit'
       form.append(label, save)
       const manage = element('details')
       const manageTitle = element('summary')
       let lastWork = ''
-      const overwrite = button('現在の内容で上書き', () => saveWork(lastWork, true))
-      const remove = button('削除…', () => {
+      const overwrite = button(t('現在の内容で上書き', 'Overwrite with current settings'), () => saveWork(lastWork, true))
+      const remove = button(t('削除…', 'Delete…'), () => {
         confirmation.hidden = false
         confirmRemove.focus()
       })
       const confirmation = element('div')
-      const confirmRemove = button('この作業を削除', () => {
+      const confirmRemove = button(t('この作業を削除', 'Delete this workspace'), () => {
         if (isLocked() || !presets.has(lastWork)) return
         const title = lastWork
         try {
           if (persisted.has(title)) doc.defaultView.localStorage.removeItem(prefix + title)
         } catch {
-          status.textContent = 'ブラウザの保存枠から削除できませんでした'
+          status.textContent = t('ブラウザの保存枠から削除できませんでした', 'Could not delete it from browser storage')
           return
         }
         persisted.delete(title)
@@ -1411,11 +1432,11 @@
           if (option.value === title) { option.remove(); break }
         }
         setLastWork('')
-        status.textContent = '「' + title + '」を削除しました'
+        status.textContent = t('「' + title + '」を削除しました', 'Deleted “' + title + '”')
         refresh()
         name.focus()
       })
-      const cancel = button('キャンセル', () => {
+      const cancel = button(t('キャンセル', 'Cancel'), () => {
         confirmation.hidden = true
         remove.focus()
       })
@@ -1424,7 +1445,7 @@
       manage.addEventListener('toggle', () => { if (!manage.open) confirmation.hidden = true })
       function setLastWork(title) {
         lastWork = title
-        manageTitle.textContent = '「' + title + '」の更新・削除'
+        manageTitle.textContent = t('「' + title + '」の更新・削除', 'Update or delete “' + title + '”')
         manage.open = false
         manage.hidden = !title
         confirmation.hidden = true
@@ -1438,7 +1459,7 @@
       function saveWork(title, replace) {
         if (isLocked()) return
         if (!title || (!replace && presets.has(title))) {
-          status.textContent = title ? '同じ名前の作業があります' : '作業名を入力してください'
+          status.textContent = title ? t('同じ名前の作業があります', 'A workspace with this name already exists') : t('作業名を入力してください', 'Enter a workspace name')
           return
         }
         try {
@@ -1460,8 +1481,8 @@
           try {
             doc.defaultView.localStorage.setItem(prefix + title, encoded)
             persisted.add(title)
-            status.textContent = '「' + title + '」を保存しました'
-          } catch { status.textContent = '「' + title + '」はこのページでのみ使えます' }
+            status.textContent = t('「' + title + '」を保存しました', 'Saved “' + title + '”')
+          } catch { status.textContent = t('「' + title + '」はこのページでのみ使えます', '“' + title + '” is available only on this page') }
           name.value = ''
           select.value = ''
           setLastWork(title)
@@ -1471,7 +1492,7 @@
       panel.append(form, manage)
       const status = notice(panel)
       controls.append(foldPanel(panel))
-      workShortcut = button('作業環境', () => {
+      workShortcut = button(t('作業環境', 'Workspace'), () => {
         panel.querySelector(':scope > details').open = true
         const target = presets.size ? select : name
         target.focus()
@@ -1482,7 +1503,7 @@
         workShortcut.disabled = isLocked()
         overwrite.disabled = remove.disabled = confirmRemove.disabled = isLocked()
         select.disabled = isLocked() || !presets.size
-        const placeholder = presets.size ? '選んで読み込む' : '保存した作業はありません'
+        const placeholder = presets.size ? t('選んで読み込む', 'Choose to load') : t('保存した作業はありません', 'No saved workspaces')
         if (select.options[0].textContent !== placeholder) select.options[0].textContent = placeholder
         save.disabled = isLocked()
       })
@@ -1495,14 +1516,14 @@
         refresh()
         try {
           if (!validTuning(data.tuning) || (data.viewport && !viewports.some(v => v.id === data.viewport))) {
-            throw new Error('保存した調整値または表示サイズが現在の設定と一致しません')
+            throw new Error(t('保存した調整値または表示サイズが現在の設定と一致しません', 'Saved tuning values or preview size do not match the current configuration'))
           }
           if (data.point) {
             validateRestorePoint(data.point)
             await applyRestorePoint(data.point)
           } else {
-            if (data.scene && !available.has(data.scene)) throw new Error('保存した場面が見つかりません')
-            if (data.scene && !await selectScene(available.get(data.scene))) throw new Error('場面を読み込めませんでした')
+            if (data.scene && !available.has(data.scene)) throw new Error(t('保存した場面が見つかりません', 'The saved scene could not be found'))
+            if (data.scene && !await selectScene(available.get(data.scene))) throw new Error(t('場面を読み込めませんでした', 'Could not load the scene'))
             writeTuning(data.tuning)
           }
           setViewport?.(data.viewport)
@@ -1513,8 +1534,8 @@
             if (fold && typeof open === 'boolean') fold.open = open
           }
           setLastWork(title)
-          record('作業環境「' + title + '」を読み込む')
-          status.textContent = '「' + title + '」を読み込みました'
+          record(t('作業環境「' + title + '」を読み込む', 'Load workspace “' + title + '”'))
+          status.textContent = t('「' + title + '」を読み込みました', 'Loaded “' + title + '”')
         } catch (error) { status.textContent = error.message }
         finally {
           applyingWork = false
@@ -1528,6 +1549,7 @@
         canTransferState && tuning.length && tuningPresets && typeof clock?.onTick === 'function' &&
         scope.WorkbenchReplay) {
       replayPanel = scope.WorkbenchReplay.mount({
+        locale: resolvedLocale,
         doc, preview, clock, update, replay, capture: captureRestorePoint, restore: applyRestorePoint,
         readTuning, writeTuning, readPresets: tuning.length && tuningPresets ? () => profiles : null,
         readState, section, foldPanel, button,
@@ -1549,8 +1571,8 @@
       observer.dataset.gdwLane = 'right'
       controls.hidden = false
       stage.dataset.gdwCard = 'preview'
-      stage.setAttribute('aria-label', 'プレビュー')
-      const heading = cardHeading(stage, 'プレビュー', 'preview')
+      stage.setAttribute('aria-label', t('プレビュー', 'Preview'))
+      const heading = cardHeading(stage, t('プレビュー', 'Preview'), 'preview')
       heading.classList.add('gdw-preview-title')
       const titleBar = previewHeader ?? stage
       titleBar.prepend(heading)
@@ -1560,7 +1582,7 @@
     }
     preview.parentNode.insertBefore(root, preview)
     // iframeの読み込みに先立って保存済みの配置を適用する。
-    board = layout ? scope.GameDebugBoard.mount(root, layout) : null
+    board = layout ? scope.GameDebugBoard.mount(root, { ...layout, locale: resolvedLocale }) : null
     if (board && workShortcut) root.querySelector('.gdw-layout-main')?.append(workShortcut)
     if (viewport) {
       viewport.append(preview)
@@ -1586,7 +1608,7 @@
       ...(canTransferState ? {
         captureRestorePoint, validateRestorePoint,
         applyRestorePoint(point) {
-          if (isLocked()) return Promise.reject(new Error('作業中は復元できません'))
+          if (isLocked()) return Promise.reject(new Error(t('作業中は復元できません', 'Cannot restore while an operation is in progress')))
           return applyRestorePoint(point)
         },
       } : {}),
@@ -1601,7 +1623,7 @@
     }
   }
 
-  const api = { createPreviewClock, mountWorkbench }
+  const api = { resolveLocale, createPreviewClock, mountWorkbench }
   if (typeof module === 'object' && module.exports) module.exports = api
   else scope.GameDebugWorkbench = api
 })(globalThis)

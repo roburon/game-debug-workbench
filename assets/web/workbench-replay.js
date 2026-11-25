@@ -3,15 +3,17 @@
 
   // 時計の beforeTick / afterTick から呼ぶ。独自の時計や描画ループは作らない。
   function mount(ctx) {
+    const locale = scope.GameDebugWorkbench?.resolveLocale(ctx.locale) ?? ctx.locale ?? 'ja'
+    const t = (ja, en) => locale === 'ja' ? ja : en
     const { clock, replay, capture, restore, readTuning, writeTuning, readPresets,
       readState, element, button, section, controls } = ctx
     if (replay?.deterministic !== true || typeof replay.applyInput !== 'function' ||
         typeof capture !== 'function' || typeof restore !== 'function' ||
         typeof clock?.restoreState !== 'function') {
-      throw new TypeError('入力再生には決定的な更新と、乱数を含む状態の保存・復元が必要です')
+      throw new TypeError(t('入力再生には決定的な更新と、乱数を含む状態の保存・復元が必要です', 'Input replay requires deterministic updates and a restorable state that includes the random seed.'))
     }
 
-    const panel = section('操作の記録・再生', 'replay')
+    const panel = section(t('操作の記録・再生', 'Input recording and playback'), 'replay')
     const actions = element('div')
     actions.className = 'gdw-replay-actions'
     const status = element('p')
@@ -40,14 +42,14 @@
 
     function copy(value) {
       const json = JSON.stringify(value)
-      if (json === undefined) throw new TypeError('入力や保存状態はJSONで保存できる値にしてください')
+      if (json === undefined) throw new TypeError(t('入力や保存状態はJSONで保存できる値にしてください', 'Inputs and saved state must be JSON-serializable.'))
       return JSON.parse(json)
     }
 
     function snapshot() {
       const point = capture()
       if (typeof point?.then === 'function' || !Number.isSafeInteger(point?.clock?.ticks)) {
-        throw new TypeError('入力再生には時計を含む同期の保存状態が必要です')
+        throw new TypeError(t('入力再生には時計を含む同期の保存状態が必要です', 'Input replay needs a synchronous snapshot that includes the clock.'))
       }
       return copy(point)
     }
@@ -72,16 +74,16 @@
       playButton.disabled = unavailable || busy || !playable()
       const profiles = presets()
       compareButton.disabled = unavailable || busy || !playable() || !profiles.A || !profiles.B
-      const hint = profiles.A && profiles.B ? '' : 'A/B比較には「調整値の保存・比較」でAとBに保存します。'
+      const hint = profiles.A && profiles.B ? '' : t('A/B比較には「調整値の保存・比較」でAとBに保存します。', 'Save both A and B tuning presets before comparing them.')
       if (compareHint.textContent !== hint) compareHint.textContent = hint
       cancelButton.disabled = unavailable || !['preparing', 'playing', 'comparing'].includes(mode)
       const count = recording?.inputs.length ?? 0
       const ticks = mode === 'recording'
         ? clock.state().ticks - recording.start.clock.ticks : recording?.duration ?? 0
-      summary.textContent = recording ? ticks + 'コマ / 操作' + count + '件' : 'まだ操作は記録されていません'
+      summary.textContent = recording ? t(ticks + 'コマ / 操作' + count + '件', `Frames: ${ticks} / Inputs: ${count}`) : t('まだ操作は記録されていません', 'No inputs recorded yet.')
       if (mode === 'playing' || mode === 'comparing') {
-        summary.textContent += '　' + (run.phase ? run.phase + '：' : '') +
-          (clock.state().ticks - recording.start.clock.ticks) + ' / ' + recording.duration + 'コマ'
+        summary.textContent += t('　', ' · ') + (run.phase ? run.phase + t('：', ': ') : '') +
+          (clock.state().ticks - recording.start.clock.ticks) + ' / ' + recording.duration + t('コマ', ' frames')
       }
     }
 
@@ -95,8 +97,8 @@
         results.replaceChildren()
         mode = 'recording'
         clock.setPaused(false)
-        log('操作の記録を開始')
-        changed('記録中。操作は次のコマに反映されます')
+        log(t('操作の記録を開始', 'Started recording inputs'))
+        changed(t('記録中。操作は次のコマに反映されます', 'Recording. Inputs take effect on the next frame.'))
         return true
       } catch (error) {
         changed(error.message)
@@ -104,14 +106,14 @@
       }
     }
 
-    function stopRecording(message = '操作の記録を終了しました') {
+    function stopRecording(message = t('操作の記録を終了しました', 'Recording stopped.')) {
       if (mode !== 'recording') return false
       clock.setPaused(true)
       recording.duration = clock.state().ticks - recording.start.clock.ticks
       pending = []
       mode = 'idle'
-      log('操作の記録を終了（' + recording.duration + 'コマ）')
-      changed(recording.duration ? message : '1コマ以上進めてから記録を止めてください')
+      log(t('操作の記録を終了（' + recording.duration + 'コマ）', `Recording stopped after ${recording.duration} frames.`))
+      changed(recording.duration ? message : t('1コマ以上進めてから記録を止めてください', 'Advance at least one frame before stopping the recording.'))
       return true
     }
 
@@ -119,15 +121,15 @@
     function input(value) {
       if (locked() || !['idle', 'recording'].includes(mode)) return false
       if (pending.length + (mode === 'recording' ? recording.inputs.length : 0) >= maxInputs) {
-        if (mode === 'recording') stopRecording('入力が上限の' + maxInputs + '件に達したため停止しました')
-        else changed('入力が多すぎます。次のコマが進むまでお待ちください')
+        if (mode === 'recording') stopRecording(t('入力が上限の' + maxInputs + '件に達したため停止しました', `Stopped at the limit of ${maxInputs} inputs.`))
+        else changed(t('入力が多すぎます。次のコマが進むまでお待ちください', 'Too many inputs. Wait for the next frame.'))
         return false
       }
       try {
         JSON.stringify(value, (_key, entry) => {
           if (entry === undefined || typeof entry === 'function' || typeof entry === 'symbol' ||
               (typeof entry === 'number' && !Number.isFinite(entry))) {
-            throw new TypeError('入力にはJSONで変化せず保存できる値を使ってください')
+            throw new TypeError(t('入力にはJSONで変化せず保存できる値を使ってください', 'Inputs must survive a JSON round trip unchanged.'))
           }
           return entry
         })
@@ -147,19 +149,19 @@
     async function prepare(phase, token) {
       mode = 'preparing'
       clock.setPaused(true)
-      changed((phase || '記録') + 'の開始状態を復元中')
+      changed(t((phase || '記録') + 'の開始状態を復元中', `Restoring the starting state for ${phase || 'the recording'}…`))
       await restore(copy(recording.start))
       if (destroyed || token !== generation) return
       writeTuning(copy(phase ? run.profiles[phase] : recording.tuning))
       if (clock.state().ticks !== recording.start.clock.ticks) {
-        throw new Error('開始時の時計を復元できませんでした')
+        throw new Error(t('開始時の時計を復元できませんでした', 'Could not restore the starting clock.'))
       }
       run.phase = phase
       run.cursor = 0
       run.expectedTick = recording.start.clock.ticks
       mode = phase ? 'comparing' : 'playing'
       clock.setPaused(false)
-      changed(phase ? phase + 'の調整値で同じ操作を再生中' : '記録した操作を再生中')
+      changed(phase ? t(phase + 'の調整値で同じ操作を再生中', `Playing the same inputs with preset ${phase}.`) : t('記録した操作を再生中', 'Playing recorded inputs.'))
     }
 
     async function fail(error, token) {
@@ -167,11 +169,11 @@
       mode = 'preparing'
       clock.setPaused(true)
       pending = []
-      let message = '再生を停止しました。' + error.message
+      let message = t('再生を停止しました。', 'Playback stopped. ') + error.message
       try {
         if (rollback) await restore(copy(rollback))
       } catch (rollbackError) {
-        message += '。開始前の状態への復元にも失敗しました：' + rollbackError.message
+        message += t('。開始前の状態への復元にも失敗しました：', '. Could not restore the previous state: ') + rollbackError.message
       }
       if (token !== generation) return
       clock.setPaused(true)
@@ -187,7 +189,7 @@
       const token = ++generation
       try {
         const profiles = compare ? copy(presets()) : null
-        if (compare && (!profiles.A || !profiles.B)) throw new Error('調整値のAとBを先に保存してください')
+        if (compare && (!profiles.A || !profiles.B)) throw new Error(t('調整値のAとBを先に保存してください', 'Save tuning presets A and B first.'))
         rollback = snapshot()
         pending = []
         result = null
@@ -211,17 +213,17 @@
         const tick = clock.state().ticks
         if (mode === 'playing' || mode === 'comparing') {
           if (tick !== run.expectedTick || tick >= recording.start.clock.ticks + recording.duration) {
-            throw new Error('再生中の時計が記録したコマからずれました')
+            throw new Error(t('再生中の時計が記録したコマからずれました', 'The playback clock drifted from the recorded frame.'))
           }
           const offset = tick - recording.start.clock.ticks
           while (run.cursor < recording.inputs.length && recording.inputs[run.cursor].tick === offset) {
             const entry = recording.inputs[run.cursor++]
             const applied = replay.applyInput(copy(entry.value))
-            if (typeof applied?.then === 'function') throw new TypeError('入力の反映は同期で行ってください')
+            if (typeof applied?.then === 'function') throw new TypeError(t('入力の反映は同期で行ってください', 'Apply each input synchronously.'))
           }
         } else {
           if (mode === 'recording' && tick !== recording.expectedTick) {
-            throw new Error('記録中にゲーム内時刻が変わりました。操作を記録し直してください')
+            throw new Error(t('記録中にゲーム内時刻が変わりました。操作を記録し直してください', 'Game time changed during recording. Record the inputs again.'))
           }
           const inputs = pending.splice(0)
           for (const value of inputs) {
@@ -229,18 +231,18 @@
               recording.inputs.push({ tick: tick - recording.start.clock.ticks, value: copy(value) })
             }
             const applied = replay.applyInput(value)
-            if (typeof applied?.then === 'function') throw new TypeError('入力の反映は同期で行ってください')
+            if (typeof applied?.then === 'function') throw new TypeError(t('入力の反映は同期で行ってください', 'Apply each input synchronously.'))
           }
         }
         return true
       } catch (error) {
         if (mode === 'recording') {
-          stopRecording('入力の反映に失敗しました：' + error.message)
+          stopRecording(t('入力の反映に失敗しました：', 'Could not apply input: ') + error.message)
           recording = null
           refresh()
         }
         else if (run) operation = fail(error, generation)
-        else changed('入力の反映に失敗しました：' + error.message)
+        else changed(t('入力の反映に失敗しました：', 'Could not apply input: ') + error.message)
         clock.setPaused(true)
         return false
       }
@@ -256,19 +258,19 @@
       const b = run.results.B
       result = copy({ ticks: recording.duration, endTick: clock.state().ticks, A: a, B: b,
         tuning: run.profiles })
-      const heading = element('h3', '同じ終了コマでの比較')
-      const end = element('p', recording.duration + 'コマ後 / 終了コマ ' + clock.state().ticks)
+      const heading = element('h3', t('同じ終了コマでの比較', 'Comparison at the same final frame'))
+      const end = element('p', t(recording.duration + 'コマ後 / 終了コマ ' + clock.state().ticks, `Frames elapsed: ${recording.duration} / Final frame: ${clock.state().ticks}`))
       const list = element('dl')
       const labels = new Set([...Object.keys(a), ...Object.keys(b)])
       for (const label of labels) {
         const row = element('div')
         row.append(element('dt', label))
         const difference = typeof a[label] === 'number' && typeof b[label] === 'number'
-          ? ' / 差 ' + Number((b[label] - a[label]).toPrecision(10)) : ''
+          ? t(' / 差 ', ' / difference: ') + Number((b[label] - a[label]).toPrecision(10)) : ''
         row.append(element('dd', 'A ' + display(a[label]) + ' / B ' + display(b[label]) + difference))
         list.append(row)
       }
-      if (!labels.size) list.append(element('dd', '比較できる実行状態がありません'))
+      if (!labels.size) list.append(element('dd', t('比較できる実行状態がありません', 'No game state available to compare.')))
       results.replaceChildren(heading, end, list)
     }
 
@@ -277,23 +279,23 @@
       if (mode === 'recording') {
         recording.expectedTick += 1
         if (clock.state().ticks !== recording.expectedTick) {
-          stopRecording('記録中にゲーム内時刻が変わりました。操作を記録し直してください')
+          stopRecording(t('記録中にゲーム内時刻が変わりました。操作を記録し直してください', 'Game time changed during recording. Record the inputs again.'))
           recording = null
           refresh()
           return
         }
         const ticks = clock.state().ticks - recording.start.clock.ticks
-        if (ticks >= maxTicks) stopRecording('記録が上限の' + maxTicks + 'コマに達したため停止しました')
+        if (ticks >= maxTicks) stopRecording(t('記録が上限の' + maxTicks + 'コマに達したため停止しました', `Stopped recording at the limit of ${maxTicks} frames.`))
         return
       }
       if (mode !== 'playing' && mode !== 'comparing') return
       const token = generation
       try {
         run.expectedTick += 1
-        if (clock.state().ticks !== run.expectedTick) throw new Error('再生中の時計が記録したコマからずれました')
+        if (clock.state().ticks !== run.expectedTick) throw new Error(t('再生中の時計が記録したコマからずれました', 'The playback clock drifted from the recorded frame.'))
         if (clock.state().ticks < recording.start.clock.ticks + recording.duration) return
         clock.setPaused(true)
-        if (run.cursor !== recording.inputs.length) throw new Error('未再生の入力が残っています')
+        if (run.cursor !== recording.inputs.length) throw new Error(t('未再生の入力が残っています', 'Some recorded inputs have not been played.'))
         if (run.phase) {
           run.results[run.phase] = copy(readState?.() ?? {})
           if (run.phase === 'A') {
@@ -306,8 +308,8 @@
         run = null
         rollback = null
         mode = 'idle'
-        log(compared ? '同じ操作でA/Bを比較しました' : '記録した操作の再生が完了')
-        changed(compared ? 'A/Bの比較が完了しました。プレビューはBの終了状態です' : '記録の終了コマで停止しました')
+        log(compared ? t('同じ操作でA/Bを比較しました', 'Compared A and B with the same inputs.') : t('記録した操作の再生が完了', 'Finished playing recorded inputs.'))
+        changed(compared ? t('A/Bの比較が完了しました。プレビューはBの終了状態です', 'Comparison complete. The preview shows the final state for B.') : t('記録の終了コマで停止しました', 'Stopped at the last recorded frame.'))
       } catch (error) {
         operation = fail(error, token)
       }
@@ -320,15 +322,15 @@
       clock.setPaused(true)
       mode = 'canceling'
       pending = []
-      changed('再生前の状態に戻しています')
+      changed(t('再生前の状態に戻しています', 'Restoring the state before playback…'))
       const previous = operation
       operation = (async () => {
-        let message = '再生を中止し、再生前の状態に戻しました'
+        let message = t('再生を中止し、再生前の状態に戻しました', 'Playback canceled. Previous state restored.')
         try {
           await previous
           if (rollback) await restore(copy(rollback))
         } catch (error) {
-          message = '中止後の復元に失敗しました：' + error.message
+          message = t('中止後の復元に失敗しました：', 'Could not restore state after canceling: ') + error.message
         }
         clock.setPaused(true)
         mode = 'idle'
@@ -339,11 +341,11 @@
       return operation
     }
 
-    const recordButton = button('記録を開始', startRecording)
-    const stopButton = button('記録を終了', () => stopRecording())
-    const playButton = button('記録を再生', () => startPlayback())
-    const compareButton = button('同じ操作でA/B比較', () => startPlayback(true))
-    const cancelButton = button('記録の再生を中止', cancel)
+    const recordButton = button(t('記録を開始', 'Start recording'), startRecording)
+    const stopButton = button(t('記録を終了', 'Stop recording'), () => stopRecording())
+    const playButton = button(t('記録を再生', 'Play recording'), () => startPlayback())
+    const compareButton = button(t('同じ操作でA/B比較', 'Compare A/B with the same inputs'), () => startPlayback(true))
+    const cancelButton = button(t('記録の再生を中止', 'Cancel playback'), cancel)
     const recordingActions = element('div')
     const playbackActions = element('div')
     recordingActions.append(recordButton, stopButton)

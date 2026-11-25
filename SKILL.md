@@ -1,11 +1,17 @@
 ---
 name: game-debug-workbench
-description: ゲームや動くモックに開発用のプレビュー、左右の調整・デバッグパネル、停止・再開・コマ送り・倍速、場面の保存・再現、作業プリセット、イベントでの自動停止、再現情報の貼り付け、記録入力によるA/B比較、状態やログ、カード配置を追加するときに使う。普通の製品画面のUI改修や原因調査だけの場合は対象外。
+description: Add a browser game debug panel with frame stepping, tuning controls, customizable layouts, event breakpoints, saved scenes and input replay. ゲームや動くモックの調整・デバッグ画面、コマ送り、作業環境、再現情報の復元、記録入力によるA/B比較を組み込むときに使う。
 ---
 
 # ゲームやモックの調整・デバッグ画面
 
 既存の作品をプレビューで操作しながら、隣のパネルで値や時間を調整し、状態やイベントで結果を確かめる。作品ごとに確認したい項目を選ぶ。
+
+### Display language / 表示言語
+
+Use the user's language for your response and integration instructions. The bundled controls support English and Japanese. Follow the game's language setting when one exists. Otherwise let the panel use the browser's language preferences. Supply game-specific labels in the same language and keep IDs and storage keys stable.
+
+盤面を使う人のブラウザの優先言語に合わせて、日本語または英語で表示する。ゲームに言語設定があれば `mountWorkbench({ locale, ... })` に渡す。場面名、調整項目、ゲーム側のエラーや操作案内にも同じ設定を使う。利用者がほかの言語を指定した場合は、組み込み先でその言語の表示文言を用意する。[言語の選び方と接続例](references/integration.md#display-language)
 
 ## 作品につなぐ
 

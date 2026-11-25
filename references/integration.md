@@ -2,6 +2,29 @@
 
 [Web見本](../assets/web/demo.html)はローカルのファイルとして開ける。「実行状態」の「ゲーム内時刻」と「更新回数」で、停止とコマ送りを確かめられる。重力と反発は実際のボールの動きに反映する。URLに `?debug=0` を付けると、作品だけの画面になる。
 
+## Display language
+
+言語を省略すると、盤面を開いたブラウザの優先順から最初の日本語・英語を選ぶ。`ja-JP` は日本語、`en-GB` は英語。`fr, ja, en` の順なら日本語を使う。対応する言語が一つもなければ英語で表示する。判定は取り付け時に行う。ブラウザの設定を変えたら、見本を開き直す。
+
+ゲームに言語設定がある場合は、その値を優先する。共通のボタン・ダイアログ・状態表示・読み上げ用の名前は盤面が切り替える。場面名、調整項目、ゲームが記録するログや自前のページ見出しは作品側で用意する。
+
+```js
+const { resolveLocale, mountWorkbench } = GameDebugWorkbench
+const locale = resolveLocale(gameSettings.language) // 未設定ならブラウザの言語
+const labels = locale === 'ja'
+  ? { landing: '着地の直前', gravity: '重力' }
+  : { landing: 'Before landing', gravity: 'Gravity' }
+
+const panel = mountWorkbench({
+  preview, clock, update, locale,
+  scenes: [{ id: 'landing', label: labels.landing, load: loadLanding }],
+  tuning: [{ id: 'gravity', label: labels.gravity, min: 120, max: 800,
+    read: () => gravity, write: value => { gravity = value } }],
+})
+```
+
+言語を切り替えても `id`、作品ID、保存キー、保存した作業名はそのまま使う。旧版で調整項目の `id` を省略していた場合は、翻訳する前の `label` と同じ文字列を `id` に指定する。これで以前の調整値を別の言語からも読み込める。
+
 ## Webで部品を使う
 
 [debug-workbench.js](../assets/web/debug-workbench.js) と [debug-workbench.css](../assets/web/debug-workbench.css) を開発用の入口から読み込む。依存パッケージは不要。通常起動と同じファイルを使う場合は、既存の開発フラグを確認してから読み込む。フラグがなければローカルの開発版で `?debug=1` などを使う。

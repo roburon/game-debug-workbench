@@ -7,9 +7,24 @@
   const MIN_BOARD_WIDTH = 240
   const MAX_BOARD_WIDTH = 16384
   const trackMinimums = { wide: { px: 155, percent: 20 }, pair: { px: 170, percent: 30 } }
-  const laneNames = { top: '上段', left: '左列', center: '中央列', right: '右列', bottom: '下段' }
-
-  function mount(root, { storageKey, heading, header, hiddenCards }) {
+  function mount(root, { storageKey, heading, header, hiddenCards, locale }) {
+    function standaloneLocale() {
+      let preferences = locale
+      if (preferences == null || preferences === 'auto') {
+        const navigator = root.ownerDocument.defaultView.navigator
+        preferences = [...(navigator?.languages ?? []), navigator?.language]
+      }
+      for (const preference of Array.isArray(preferences) ? preferences : [preferences]) {
+        if (typeof preference !== 'string') continue
+        const language = preference.trim().split('-')[0].toLowerCase()
+        if (language === 'ja' || language === 'en') return language
+      }
+      return 'en'
+    }
+    const language = typeof scope.GameDebugWorkbench?.resolveLocale === 'function'
+      ? scope.GameDebugWorkbench.resolveLocale(locale) : standaloneLocale()
+    const t = (ja, en) => language === 'en' ? en : ja
+    const laneNames = { top: t('上段', 'Top row'), left: t('左列', 'Left column'), center: t('中央列', 'Center column'), right: t('右列', 'Right column'), bottom: t('下段', 'Bottom row') }
     const doc = root.ownerDocument
     const win = doc.defaultView
     const keyboard = new win.AbortController()
@@ -203,15 +218,15 @@
     const cues = new Map()
     const bar = element('div', '', 'gdw-layout-bar')
     const barMain = element('div', '', 'gdw-layout-main')
-    const selectLabel = element('label', '配置', 'gdw-layout-select')
+    const selectLabel = element('label', t('配置', 'Layout'), 'gdw-layout-select')
     const select = element('select')
-    select.setAttribute('aria-label', '配置プリセット')
+    select.setAttribute('aria-label', t('配置プリセット', 'Layout preset'))
     selectLabel.append(select)
     const boardSizing = element('div', '', 'gdw-board-sizing')
-    const modeLabel = element('label', '盤面幅')
+    const modeLabel = element('label', t('盤面幅', 'Board width'))
     const widthMode = element('select')
-    widthMode.setAttribute('aria-label', '盤面幅')
-    widthMode.append(option('fit', 'ウィンドウに合わせる'), option('fixed', '固定幅'))
+    widthMode.setAttribute('aria-label', t('盤面幅', 'Board width'))
+    widthMode.append(option('fit', t('ウィンドウに合わせる', 'Fit to window')), option('fixed', t('固定幅', 'Fixed width')))
     modeLabel.append(widthMode)
     const pixels = element('label', '', 'gdw-board-pixels')
     const widthInput = element('input')
@@ -220,15 +235,15 @@
     widthInput.max = String(MAX_BOARD_WIDTH)
     widthInput.step = '1'
     widthInput.required = true
-    widthInput.setAttribute('aria-label', '固定する盤面幅')
+    widthInput.setAttribute('aria-label', t('固定する盤面幅', 'Fixed board width'))
     pixels.append(widthInput, 'px')
     boardSizing.append(modeLabel, pixels)
-    const edit = button('配置を編集', () => setEditing(!editing))
+    const edit = button(t('配置を編集', 'Edit layout'), () => setEditing(!editing))
     edit.className = 'gdw-layout-toggle'
     edit.setAttribute('aria-expanded', 'false')
     const visibility = element('dialog', '', 'gdw-placement-picker gdw-visibility')
-    visibility.setAttribute('aria-label', '表示するカード')
-    const chooseCards = button('表示するカード', () => {
+    visibility.setAttribute('aria-label', t('表示するカード', 'Visible cards'))
+    const chooseCards = button(t('表示するカード', 'Visible cards'), () => {
       for (const [key, check] of checks) check.parentElement.hidden = cards.get(key).hidden
       visibility.showModal()
     })
@@ -238,7 +253,7 @@
     const checks = new Map()
     const groups = new Map()
     for (const [key, card] of cards) {
-      const genre = card.querySelector('.gdw-genre-name')?.textContent ?? 'カード'
+      const genre = card.querySelector('.gdw-genre-name')?.textContent ?? t('カード', 'Cards')
       if (!groups.has(genre)) {
         const group = element('fieldset')
         group.append(element('legend', genre))
@@ -257,15 +272,15 @@
       })
     }
     const visibilityActions = element('div', '', 'gdw-picker-actions')
-    const showAll = button('すべて表示', () => commit({ ...state, hiddenCards: [] }, ''))
-    visibilityActions.append(showAll, button('閉じる', () => visibility.close()))
-    visibility.append(element('h2', '表示するカード'), options, visibilityActions)
-    const undo = button('元の配置に戻す', restoreLayout)
+    const showAll = button(t('すべて表示', 'Show all'), () => commit({ ...state, hiddenCards: [] }, ''))
+    visibilityActions.append(showAll, button(t('閉じる', 'Close'), () => visibility.close()))
+    visibility.append(element('h2', t('表示するカード', 'Visible cards')), options, visibilityActions)
+    const undo = button(t('元の配置に戻す', 'Restore layout'), restoreLayout)
     undo.className = 'gdw-layout-undo'
     undo.disabled = true
-    undo.title = '配置や作業環境を切り替える前のカード配置・幅・高さに戻します。ゲームの状態はそのままです。'
-    undo.setAttribute('aria-label', '元の配置に戻す（ゲームの状態は戻しません）')
-    const undoHint = element('span', 'ゲームの状態はそのまま', 'gdw-layout-undo-hint')
+    undo.title = t('配置や作業環境を切り替える前のカード配置・幅・高さに戻します。ゲームの状態はそのままです。', 'Restore card positions, widths, and heights from before switching layouts or workspaces. Game state is unchanged.')
+    undo.setAttribute('aria-label', t('元の配置に戻す（ゲームの状態は戻しません）', 'Restore layout (game state is unchanged)'))
+    const undoHint = element('span', t('ゲームの状態はそのまま', 'Game state is unchanged'), 'gdw-layout-undo-hint')
     undoHint.hidden = true
     const message = element('p', '', 'gdw-layout-status')
     let messageTimer = 0
@@ -275,15 +290,15 @@
     const form = element('form', '', 'gdw-layout-form')
     const name = element('input')
     name.maxLength = 40
-    name.placeholder = '配置名'
+    name.placeholder = t('配置名', 'Layout name')
     name.autocomplete = 'off'
-    name.setAttribute('aria-label', '配置名')
-    const save = element('button', '配置を新規保存')
+    name.setAttribute('aria-label', t('配置名', 'Layout name'))
+    const save = element('button', t('配置を新規保存', 'Save new layout'))
     save.type = 'submit'
-    const update = button('配置を上書き保存', updatePreset)
+    const update = button(t('配置を上書き保存', 'Overwrite layout'), updatePreset)
     form.append(name, save, update)
     form.hidden = true
-    const placementHint = element('p', '見出しをつかむとカードを移動できます。左右の辺とカードの境目で幅を、下の辺で高さを調整できます。', 'gdw-placement-hint')
+    const placementHint = element('p', t('見出しをつかむとカードを移動できます。左右の辺とカードの境目で幅を、下の辺で高さを調整できます。', 'Drag headings to move cards. Drag side edges or card dividers to adjust widths, and bottom edges to adjust heights.'), 'gdw-placement-hint')
     placementHint.hidden = true
     const headerAnchor = header?.parentNode ? doc.createComment('盤面ヘッダーの元の位置') : null
     if (headerAnchor) header.before(headerAnchor)
@@ -302,8 +317,8 @@
       bar.classList.add('gdw-inline-bar')
       const row = element('div', '', 'gdw-header-row')
       const menu = element('dialog', '', 'gdw-placement-picker gdw-header-menu')
-      menu.setAttribute('aria-label', 'メニュー')
-      const menuButton = button('メニュー', () => {
+      menu.setAttribute('aria-label', t('メニュー', 'Menu'))
+      const menuButton = button(t('メニュー', 'Menu'), () => {
         menu.showModal()
         menuButton.setAttribute('aria-expanded', 'true')
       })
@@ -311,8 +326,8 @@
       menuButton.setAttribute('aria-expanded', 'false')
       menuButton.hidden = true
       const menuEnd = element('div', '', 'gdw-picker-actions')
-      menuEnd.append(button('閉じる', () => menu.close()))
-      menu.append(element('h2', 'メニュー'), menuEnd)
+      menuEnd.append(button(t('閉じる', 'Close'), () => menu.close()))
+      menu.append(element('h2', t('メニュー', 'Menu')), menuEnd)
       const nav = header.querySelector('nav')
       const navAnchor = nav ? doc.createComment('ゲーム切り替えの位置') : null
       if (nav) nav.before(navAnchor)
@@ -321,8 +336,8 @@
       if (compactTitle) header.append(compactTitle)
 
       const saveDialog = element('dialog', '', 'gdw-placement-picker gdw-header-save')
-      saveDialog.setAttribute('aria-label', '配置を保存')
-      const saveButton = button('配置を保存…', () => {
+      saveDialog.setAttribute('aria-label', t('配置を保存', 'Save layout'))
+      const saveButton = button(t('配置を保存…', 'Save layout…'), () => {
         if (menu.open) menu.close()
         saveDialog.showModal()
         name.focus()
@@ -331,11 +346,11 @@
       saveButton.hidden = true
       barMain.insertBefore(saveButton, undo)
       const saveEnd = element('div', '', 'gdw-picker-actions')
-      saveEnd.append(button('閉じる', () => saveDialog.close()))
-      saveDialog.append(element('h2', '配置を保存'), form, saveEnd)
+      saveEnd.append(button(t('閉じる', 'Close'), () => saveDialog.close()))
+      saveDialog.append(element('h2', t('配置を保存', 'Save layout')), form, saveEnd)
       edit.title = placementHint.textContent
       const editTools = element('div', '', 'gdw-mobile-edit-tools')
-      editTools.append(button('配置を保存…', () => saveButton.click()), button('編集を完了', () => setEditing(false)))
+      editTools.append(button(t('配置を保存…', 'Save…'), () => saveButton.click(), t('配置を保存', 'Save layout')), button(t('編集を完了', 'Done'), () => setEditing(false), t('編集を完了', 'Done editing')))
       row.append(header, barMain, chooseCards, editTools, menuButton)
       bar.prepend(row)
       bar.append(menu, saveDialog)
@@ -416,7 +431,7 @@
       if (widthInput.disabled) return
       if (!validBoardWidth(board)) {
         widthInput.value = state.widths.board
-        report('固定幅には' + MIN_BOARD_WIDTH + '〜' + MAX_BOARD_WIDTH + 'pxの整数を入力してください。')
+        report(t('固定幅には' + MIN_BOARD_WIDTH + '〜' + MAX_BOARD_WIDTH + 'pxの整数を入力してください。', 'Enter a whole number from ' + MIN_BOARD_WIDTH + ' to ' + MAX_BOARD_WIDTH + ' px for the fixed width.'))
         return
       }
       if (board !== state.widths.board) commit({ ...state, widths: { ...state.widths, board } }, '', false)
@@ -456,7 +471,7 @@
     // 各領域の外にハンドルを置き、カードの配置や領域内のスクロールから独立させる。
     const boundaries = new Map()
     const resetDialog = element('dialog', '', 'gdw-placement-picker gdw-size-reset')
-    resetDialog.setAttribute('aria-label', 'サイズを戻す')
+    resetDialog.setAttribute('aria-label', t('サイズを戻す', 'Reset size'))
     bar.append(resetDialog)
     for (const [id, lane] of lanes) {
       const boundary = element('div', '', 'gdw-width-boundary')
@@ -470,18 +485,18 @@
         const handle = element('div', '', height ? 'gdw-height-edge' : 'gdw-width-edge')
         if (height) handle.dataset.gdwHeightEdge = ''
         else handle.dataset.gdwWidthEdge = edge
-        const label = title + ({ left: 'の左端', right: 'の右端', bottom: 'の下端' })[edge]
+        const label = t(title + ({ left: 'の左端', right: 'の右端', bottom: 'の下端' })[edge], title + ({ left: ' left edge', right: ' right edge', bottom: ' bottom edge' })[edge])
         handle.setAttribute('role', 'separator')
         handle.setAttribute('aria-orientation', height ? 'horizontal' : 'vertical')
         handle.setAttribute('aria-label', label)
-        handle.title = label + (height ? 'を引いて高さの上限を調整' : 'を引いて幅を調整') + '。Homeで解除、ダブルクリックでサイズを戻す'
+        handle.title = t(label + (height ? 'を引いて高さの上限を調整' : 'を引いて幅を調整') + '。Homeで解除、ダブルクリックでサイズを戻す', label + (height ? ': drag to adjust the height limit.' : ': drag to adjust width.') + ' Press Home to remove the limit, or double-click to reset size.')
         handle.setAttribute('aria-keyshortcuts', height ? 'ArrowUp ArrowDown Home Escape' : 'ArrowLeft ArrowRight Home Escape')
         handle.tabIndex = 0
         handles[edge] = handle
         boundary.append(handle)
         attachSizeEdge(id, handle, edge)
       }
-      const reset = button('戻す…', () => openSizeReset(id), title + 'のサイズを戻す')
+      const reset = button(t('戻す…', 'Reset…'), () => openSizeReset(id), t(title + 'のサイズを戻す', 'Reset size: ' + title))
       reset.className = 'gdw-lane-reset'
       reset.setAttribute('aria-haspopup', 'dialog')
       const readout = element('span', '', 'gdw-width-readout')
@@ -532,12 +547,12 @@
         }))
       }
       const mode = sizeMode(id, gridTracks().length)
-      if (state.widths.limits[id]) add('幅の上限を解除', 'limit')
-      if (state.heights[id] != null) add('高さの上限を解除', 'height')
-      if (mode && state.widths[mode] != null) add('列幅を標準に戻す', mode)
-      if (state.widths.rows?.[id]?.length) add('カード間の幅を標準に戻す', 'rows')
-      actions.append(button('閉じる', () => resetDialog.close()))
-      resetDialog.replaceChildren(element('h2', title + 'のサイズを戻す'), actions)
+      if (state.widths.limits[id]) add(t('幅の上限を解除', 'Remove width limit'), 'limit')
+      if (state.heights[id] != null) add(t('高さの上限を解除', 'Remove height limit'), 'height')
+      if (mode && state.widths[mode] != null) add(t('列幅を標準に戻す', 'Reset column widths'), mode)
+      if (state.widths.rows?.[id]?.length) add(t('カード間の幅を標準に戻す', 'Reset card widths'), 'rows')
+      actions.append(button(t('閉じる', 'Close'), () => resetDialog.close()))
+      resetDialog.replaceChildren(element('h2', t(title + 'のサイズを戻す', 'Reset size: ' + title)), actions)
       resetDialog.showModal()
     }
 
@@ -657,14 +672,14 @@
         JSON.stringify(state.hiddenCards) !== JSON.stringify(base?.hiddenCards ?? defaultHidden) ||
         JSON.stringify(state.widths) !== JSON.stringify(base?.widths ?? readWidths()) ||
         JSON.stringify(state.heights) !== JSON.stringify(base?.heights ?? readHeights())
-      select.replaceChildren(option(STANDARD, '標準配置'), ...state.presets.map(preset => option(preset.id, preset.name)))
+      select.replaceChildren(option(STANDARD, t('標準配置', 'Default layout')), ...state.presets.map(preset => option(preset.id, preset.name)))
       if (changed) {
-        select.append(option(CURRENT, '現在の配置'))
+        select.append(option(CURRENT, t('現在の配置', 'Current layout')))
       }
       select.value = changed ? CURRENT : state.base
       update.hidden = !base
       update.disabled = !changed
-      if (base) update.setAttribute('aria-label', base.name + 'に上書き保存')
+      if (base) update.setAttribute('aria-label', t(base.name + 'に上書き保存', 'Overwrite layout: ' + base.name))
     }
 
     function report(text) {
@@ -696,7 +711,7 @@
       previousLayout = null
       undo.disabled = true
       undoHint.hidden = true
-      commit({ ...state, ...previous }, 'カード・幅・高さを戻しました。ゲームの状態は戻していません。')
+      commit({ ...state, ...previous }, t('カード・幅・高さを戻しました。ゲームの状態は戻していません。', 'Restored card positions, widths, and heights. Game state is unchanged.'))
     }
 
     function commit(next, success, place = true) {
@@ -725,7 +740,7 @@
       applyHeights()
       refreshMenu()
       if (place) placeCards()
-      if (!persisted) report('ブラウザに保存できません。このページを開いている間は使えます。')
+      if (!persisted) report(t('ブラウザに保存できません。このページを開いている間は使えます。', 'Cannot save in this browser. Changes remain available while this page is open.'))
       else if (success !== null) report(success)
     }
 
@@ -750,19 +765,19 @@
       event.preventDefault()
       const title = name.value.trim()
       if (!title) {
-        report('配置名を入力してください。')
+        report(t('配置名を入力してください。', 'Enter a layout name.'))
         name.focus()
         return
       }
       if (state.presets.some(preset => preset.name.toLowerCase() === title.toLowerCase())) {
-        report('同じ名前の配置があります。')
+        report(t('同じ名前の配置があります。', 'A layout with this name already exists.'))
         name.focus()
         return
       }
       const id = win.crypto.getRandomValues(new Uint32Array(4)).join('-')
       const preset = { id, name: title, layout: state.layout, rows: state.rows, widths: readWidths(state.widths), heights: readHeights(state.heights), hiddenCards: [...state.hiddenCards] }
       headerTools?.saveDialog.close()
-      commit({ ...state, base: id, presets: [...state.presets, preset] }, '配置を保存しました。', false)
+      commit({ ...state, base: id, presets: [...state.presets, preset] }, t('配置を保存しました。', 'Layout saved.'), false)
       name.value = ''
     })
 
@@ -772,7 +787,7 @@
       const updated = { ...preset, layout: state.layout, rows: state.rows, widths: readWidths(state.widths), heights: readHeights(state.heights), hiddenCards: [...state.hiddenCards] }
       const presets = state.presets.map(entry => entry.id === preset.id ? updated : entry)
       headerTools?.saveDialog.close()
-      commit({ ...state, presets }, '「' + preset.name + '」を更新しました。', false)
+      commit({ ...state, presets }, t('「' + preset.name + '」を更新しました。', 'Updated “' + preset.name + '”.'), false)
     }
 
     function setEditing(enabled) {
@@ -781,7 +796,7 @@
       stopDrag()
       editing = enabled
       root.classList.toggle('gdw-layout-editing', enabled)
-      edit.textContent = enabled ? '編集を完了' : '配置を編集'
+      edit.textContent = enabled ? t('編集を完了', 'Done editing') : t('配置を編集', 'Edit layout')
       edit.setAttribute('aria-expanded', String(enabled))
       form.hidden = !enabled
       if (headerTools) {
@@ -862,25 +877,25 @@
       layout[to] = groups.flat()
       if (target || rows[to]) rows[to] = groups
       if (!layoutsMatch(layout, state.layout) || !sameRows(rows, state.rows)) {
-        commit({ ...state, layout, rows }, '配置を変更しました。')
+        commit({ ...state, layout, rows }, t('配置を変更しました。', 'Layout changed.'))
       }
     }
 
     const picker = element('dialog', '', 'gdw-placement-picker')
-    picker.setAttribute('aria-label', '配置位置を選ぶ')
+    picker.setAttribute('aria-label', t('配置位置を選ぶ', 'Choose placement'))
     const pickerTitle = element('h2')
-    const targetLabel = element('label', '移動先')
+    const targetLabel = element('label', t('移動先', 'Destination'))
     const targetSelect = element('select')
     targetSelect.setAttribute('aria-label', targetLabel.textContent)
     targetLabel.append(targetSelect)
-    const sideLabel = element('label', '置く位置')
+    const sideLabel = element('label', t('置く位置', 'Position'))
     const sideSelect = element('select')
     sideSelect.setAttribute('aria-label', sideLabel.textContent)
-    sideSelect.append(option('right', '右に並べる'), option('left', '左に並べる'),
-      option('below', '下に行を追加'), option('above', '上に行を追加'))
+    sideSelect.append(option('right', t('右に並べる', 'Place to the right')), option('left', t('左に並べる', 'Place to the left')),
+      option('below', t('下に行を追加', 'Add a row below')), option('above', t('上に行を追加', 'Add a row above')))
     sideLabel.append(sideSelect)
     let pickedKey = null
-    const confirm = button('ここに配置', () => {
+    const confirm = button(t('ここに配置', 'Place here'), () => {
       const target = cards.get(targetSelect.value)
       if (target && cardVisible(target)) moveCard(pickedKey, target.parentElement.dataset.gdwLane, targetSelect.value, sideSelect.value)
       else if (lanes.has(targetSelect.value)) moveCard(pickedKey, targetSelect.value)
@@ -888,14 +903,15 @@
     })
     targetSelect.addEventListener('change', () => { sideSelect.disabled = lanes.has(targetSelect.value) })
     const pickerActions = element('div', '', 'gdw-picker-actions')
-    pickerActions.append(button('キャンセル', () => picker.close()), confirm)
+    pickerActions.append(button(t('キャンセル', 'Cancel'), () => picker.close()), confirm)
     picker.append(pickerTitle, targetLabel, sideLabel, pickerActions)
     bar.append(picker)
 
     function showPicker(key) {
       if (picker.open || drag || sizeDrag || rowDividers.isActive()) return
       pickedKey = key
-      pickerTitle.textContent = '「' + cards.get(key).getAttribute('aria-label') + '」の配置位置'
+      const cardName = cards.get(key).getAttribute('aria-label') ?? key
+      pickerTitle.textContent = t('「' + cardName + '」の配置位置', 'Placement: ' + cardName)
       targetSelect.replaceChildren()
       for (const id of laneIds) {
         const group = element('optgroup')
@@ -904,7 +920,7 @@
           const card = cards.get(other)
           if (key !== other && cardVisible(card)) group.append(option(other, card.getAttribute('aria-label') ?? other))
         }
-        group.append(option(id, group.label + 'の末尾'))
+        group.append(option(id, t(group.label + 'の末尾', 'End of ' + group.label)))
         targetSelect.append(group)
       }
       confirm.disabled = !targetSelect.options.length
@@ -1278,14 +1294,15 @@
               handle.style.height = Math.max(0, bottom - top) + 'px'
               handle.style.setProperty('--gdw-row-grip-x', (x - left) + 'px')
               const value = Math.round(entry.value)
-              const title = (laneNames[id] ?? id) + '・' + (index + 1) + '行目の' +
-                (boundaryIndex + 1) + '枚目と' + (boundaryIndex + 2) + '枚目の幅'
-              handle.title = title + '。ドラッグまたは左右キーで調整。ドラッグ中はEscで取消。Homeまたはダブルクリックで均等'
+              const title = t((laneNames[id] ?? id) + '・' + (index + 1) + '行目の' +
+                (boundaryIndex + 1) + '枚目と' + (boundaryIndex + 2) + '枚目の幅',
+                (laneNames[id] ?? id) + ', row ' + (index + 1) + ': widths of cards ' + (boundaryIndex + 1) + ' and ' + (boundaryIndex + 2))
+              handle.title = t(title + '。ドラッグまたは左右キーで調整。ドラッグ中はEscで取消。Homeまたはダブルクリックで均等', title + '. Drag or use the left/right arrow keys to adjust. Press Esc while dragging to cancel. Press Home or double-click for equal widths.')
               handle.setAttribute('aria-label', handle.title)
               handle.setAttribute('aria-valuenow', value)
               handle.setAttribute('aria-valuemin', entry.min)
               handle.setAttribute('aria-valuemax', entry.max)
-              handle.setAttribute('aria-valuetext', '左側 ' + value + '%、右側 ' + (100 - value) + '%')
+              handle.setAttribute('aria-valuetext', t('左側 ' + value + '%、右側 ' + (100 - value) + '%', 'Left ' + value + '%, right ' + (100 - value) + '%'))
               handle.dataset.gdwRowRatio = value
               handle.dataset.gdwRowBoundary = boundaryIndex
               }
@@ -1360,7 +1377,7 @@
           bottom.setAttribute('aria-valuemax', 4000)
           const cap = sizeDrag?.id === id ? sizeDrag.height ?? state.heights[id] : state.heights[id]
           bottom.setAttribute('aria-valuenow', cap ?? Math.max(80, Math.min(4000, Math.round(rect.height))))
-          bottom.setAttribute('aria-valuetext', cap == null ? '高さの上限なし' : '高さの上限 ' + cap + ' px')
+          bottom.setAttribute('aria-valuetext', cap == null ? t('高さの上限なし', 'No height limit') : t('高さの上限 ' + cap + ' px', 'Height limit ' + cap + ' px'))
           const mode = sizeMode(id, tracks.length)
           reset.hidden = !editing || (!state.widths.limits[id] && state.heights[id] == null && (!mode || state.widths[mode] == null) && !state.widths.rows?.[id]?.length)
           reset.style.right = (slot.right - rect.right + handles.right.offsetWidth + 2) + 'px'
@@ -1368,7 +1385,7 @@
           readout.hidden = sizeDrag?.id !== id || (!sizeDrag.draft && sizeDrag.height == null)
           if (!readout.hidden) {
             const height = sizeDrag.edge === 'bottom'
-            readout.textContent = (height ? '上限 ' + sizeDrag.height : Math.round(rect.width)) + ' px'
+            readout.textContent = (height ? t('上限 ', 'Limit ') + sizeDrag.height : Math.round(rect.width)) + ' px'
             const x = sizeDrag.edge === 'left' ? left + 8 : left + rect.width - readout.offsetWidth - 8
             readout.style.left = x + 'px'
             readout.style.top = Math.max(top + 2, Math.min(top + rect.height - 25, sizeDrag.clientY - slot.top - 28)) + 'px'
@@ -1507,7 +1524,7 @@
 
       for (const [id, lane] of lanes) {
         lane.dataset.gdwLaneLabel = laneNames[id] ?? id
-        const cue = element('span', '↓ 下に続く', 'gdw-scroll-cue')
+        const cue = element('span', t('↓ 下に続く', '↓ More below'), 'gdw-scroll-cue')
         cue.dataset.gdwScrollCue = id
         cue.hidden = true
         cue.setAttribute('aria-hidden', 'true')
@@ -1522,7 +1539,7 @@
           card.prepend(title)
         }
         if (id === 'preview' && !canMovePreview) {
-          title.title = 'このブラウザではプレビューの位置は固定です。'
+          title.title = t('このブラウザではプレビューの位置は固定です。', 'The preview position is fixed in this browser.')
           continue
         }
         const handle = title.closest('summary') ?? title
@@ -1531,7 +1548,7 @@
         title.prepend(grip)
         handle.classList.add('gdw-drag-handle')
         if (handle === title) handle.tabIndex = 0
-        handle.title = '見出しをドラッグして移動。Alt＋Enterで配置先を選択'
+        handle.title = t('見出しをドラッグして移動。Alt＋Enterで配置先を選択', 'Drag the heading to move. Press Alt+Enter to choose a destination.')
         handle.setAttribute('aria-keyshortcuts', 'Alt+Enter')
         attachDrag(handle, card, id)
       }

@@ -1,7 +1,17 @@
 const { createPreviewClock, mountWorkbench } = GameDebugWorkbench
+const locale = GameDebugWorkbench.resolveLocale()
+const t = (ja, en) => locale === 'ja' ? ja : en
+document.documentElement.lang = locale
+document.title = t('ゲームの調整とデバッグ', 'Game tuning and debugging')
+document.querySelector('h1').textContent = document.title
+document.querySelector('nav').setAttribute('aria-label', t('見本の切り替え', 'Choose a demo'))
+document.querySelector('nav [aria-current]').textContent = t('ボールの反発', 'Bouncing ball')
+document.querySelector('nav a').textContent = t('3レーンの配達', 'Three-lane delivery')
 const preview = document.querySelector('.preview')
 const canvas = preview.querySelector('canvas')
 const playHint = preview.querySelector('[data-play-hint]')
+canvas.setAttribute('aria-label', t('跳ねるボールのプレビュー', 'Bouncing ball preview'))
+playHint.textContent = t('タップまたは Space で跳ね上げる', 'Tap or press Space to boost the ball')
 const ctx = canvas.getContext('2d')
 const debug = new URLSearchParams(location.search).get('debug') !== '0'
 const floor = 386
@@ -41,7 +51,7 @@ function reset() {
 }
 
 function applyInput(input) {
-  if (input?.type !== 'boost') throw new TypeError('未対応のボール操作です')
+  if (input?.type !== 'boost') throw new TypeError(t('未対応のボール操作です', 'Unsupported ball input'))
   vy = -270
   vx = (vx < 0 ? -1 : 1) * (70 + random() * 60)
   workbench?.notifyEvent('boost')
@@ -112,24 +122,24 @@ function render() {
 
 reset()
 if (debug) {
-  playHint.textContent = '再生中はタップか Space、停止中は「手動操作」で跳ね上げます。'
+  playHint.textContent = t('再生中はタップか Space、停止中は「手動操作」で跳ね上げます。', 'While playing, tap or press Space to boost. While paused, use Manual actions.')
   workbench = mountWorkbench({
     preview, clock, update,
     layout: { storageKey: 'game-debug-workbench.demo.layout.v1', header: document.querySelector('[data-gdw-page-header]') },
     workPresets: { storageKey: 'game-debug-workbench.demo.work.v1' },
     events: [
-      { id: 'floor', label: '床に当たる' },
-      { id: 'wall', label: '壁に当たる' },
-      { id: 'boost', label: '跳ね上げる' },
+      { id: 'floor', label: t('床に当たる', 'Hit the floor') },
+      { id: 'wall', label: t('壁に当たる', 'Hit a wall') },
+      { id: 'boost', label: t('跳ね上げる', 'Boost the ball') },
     ],
     replay: { deterministic: true, applyInput },
     initialScene: 'start',
     scenes: [
-      { id: 'start', label: '初期位置', load: reset },
-      { id: 'landing', label: '着地の直前', load: () => {
+      { id: 'start', label: t('初期位置', 'Starting position'), load: reset },
+      { id: 'landing', label: t('着地の直前', 'Before landing'), load: () => {
         restoreBall({ x: 160, y: floor - 4, vx: 95, vy: 240, bounces: 0, seed: 271828 })
       } },
-      { id: 'resting', label: '床で静止', load: () => {
+      { id: 'resting', label: t('床で静止', 'Resting on the floor'), load: () => {
         restoreBall({ x: 160, y: floor, vx: 0, vy: 0, bounces: 0, seed: 271828 })
       } },
     ],
@@ -142,33 +152,33 @@ if (debug) {
         const restored = state && typeof state === 'object' && !Object.hasOwn(state, 'seed') ?
           { ...state, seed: 271828 } : state
         if (!validBall(restored)) {
-          throw new TypeError('保存したボールの状態が無効です')
+          throw new TypeError(t('保存したボールの状態が無効です', 'Invalid saved ball state'))
         }
         restoreBall(restored)
       },
     },
     tuningPresets: { storageKey: 'game-debug-workbench.demo.tuning.v1' },
     viewports: [
-      { id: 'compact', label: '小さめのスマホ · 320×480', width: 320, height: 480 },
-      { id: 'phone', label: 'スマホ · 390×600', width: 390, height: 600 },
-      { id: 'wide', label: '横長 · 560×440', width: 560, height: 440 },
+      { id: 'compact', label: t('小さめのスマホ · 320×480', 'Small phone · 320×480'), width: 320, height: 480 },
+      { id: 'phone', label: t('スマホ · 390×600', 'Phone · 390×600'), width: 390, height: 600 },
+      { id: 'wide', label: t('横長 · 560×440', 'Landscape · 560×440'), width: 560, height: 440 },
     ],
     reproduction: { read: ballState },
     tuning: [
-      { id: 'gravity', label: '重力', min: 120, max: 800, step: 1, read: () => gravity,
+      { id: 'gravity', label: t('重力', 'Gravity'), min: 120, max: 800, step: 1, read: () => gravity,
         write: value => { gravity = value }, format: value => value + ' px/s²' },
-      { id: 'elasticity', label: '反発係数', min: 0.2, max: 1, step: 0.01, read: () => elasticity,
+      { id: 'elasticity', label: t('反発係数', 'Restitution'), min: 0.2, max: 1, step: 0.01, read: () => elasticity,
         write: value => { elasticity = value } },
     ],
     actionsWhilePaused: true,
-    actionsHint: '停止してボールを跳ね上げ、「1コマ進む」で高さの変化を確かめます。',
+    actionsHint: t('停止してボールを跳ね上げ、「1コマ進む」で高さの変化を確かめます。', 'Pause, boost the ball, then use Next frame to inspect its height.'),
     actions: [
-      { label: 'ボールを跳ね上げる', run: () => boost() && '上向きに ' + Math.abs(vy) + ' px/s' },
+      { label: t('ボールを跳ね上げる', 'Boost the ball'), run: () => boost() && t('上向きに ', 'Upward at ') + Math.abs(vy) + ' px/s' },
     ],
     readState: () => ({
-      '高さ': (floor - y).toFixed(1) + ' px',
-      '上下速度': vy.toFixed(1) + ' px/s',
-      '反発回数': bounces,
+      [t('高さ', 'Height')]: (floor - y).toFixed(1) + ' px',
+      [t('上下速度', 'Vertical speed')]: vy.toFixed(1) + ' px/s',
+      [t('反発回数', 'Bounces')]: bounces,
     }),
   })
 }
@@ -176,7 +186,7 @@ if (debug) {
 function playBoost() {
   if (clock.state().paused) return
   boost()
-  workbench?.record('プレビューから跳ね上げる')
+  workbench?.record(t('プレビューから跳ね上げる', 'Boosted from the preview'))
 }
 canvas.addEventListener('pointerdown', playBoost)
 canvas.addEventListener('keydown', event => {

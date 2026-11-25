@@ -1,9 +1,9 @@
 <!doctype html>
-<html lang="ja">
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>3レーンの配達 · デバッグ見本</title>
+  <title>Three-lane delivery · Debug demo</title>
   <link rel="stylesheet" href="debug-workbench.css">
   <link rel="stylesheet" href="workbench-board.css">
   <style>
@@ -25,19 +25,19 @@
 <body class="gdw-demo">
   <main>
     <header class="gdw-demo-header" data-gdw-page-header>
-      <h1>ゲームの調整とデバッグ</h1>
-      <nav aria-label="見本の切り替え">
-        <a href="demo.html">ボールの反発</a>
-        <span aria-current="page">3レーンの配達</span>
+      <h1>Game tuning and debugging</h1>
+      <nav aria-label="Choose a demo">
+        <a href="demo.html">Bouncing ball</a>
+        <span aria-current="page">Three-lane delivery</span>
       </nav>
     </header>
     <div class="preview">
-      <canvas width="320" height="440" tabindex="0" aria-label="3レーンの配達。左右キーで荷物を受け取る"></canvas>
-      <div class="lane-controls" aria-label="配達の操作">
-        <button type="button" data-move="-1">左へ</button>
-        <button type="button" data-move="1">右へ</button>
+      <canvas width="320" height="440" tabindex="0" aria-label="Three-lane delivery. Use the left and right arrow keys to catch parcels."></canvas>
+      <div class="lane-controls" aria-label="Delivery controls">
+        <button type="button" data-move="-1">Left</button>
+        <button type="button" data-move="1">Right</button>
       </div>
-      <p data-play-hint>左右キーかボタンで荷物の下へ移動</p>
+      <p data-play-hint>Use the arrow keys or buttons to move under the parcels</p>
     </div>
   </main>
   <script src="workbench-board.js"></script>

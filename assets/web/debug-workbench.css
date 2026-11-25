@@ -459,6 +459,7 @@ section:has(> .gdw-transport) { align-self: start; container: gdw-time / inline-
   color: var(--gdw-muted);
 }
 :is(.gdw-observer, [data-gdw-card='events']) ol:empty::before { content: "イベントはまだありません"; }
+:is(.gdw-observer, [data-gdw-card='events']) ol:empty:lang(en)::before { content: "No events yet"; }
 [data-gdw-card="events"] li { display: flex; align-items: baseline; gap: 8px; padding-block: 4px; color: #edf5f5; }
 [data-gdw-card="events"] li + li { border-top: 1px solid var(--gdw-border); }
 .gdw-log-time { flex: none; min-width: 4.3em; text-align: end; color: var(--gdw-muted); font: 12px/1.5 ui-monospace, monospace; }

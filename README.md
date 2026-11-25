@@ -1,6 +1,10 @@
 # game-debug-workbench
 
+A Codex and Claude Code skill for adding a debug panel to browser games. The workbench and both playable demos open in English or Japanese based on the browser’s preferred languages. In a game with its own language setting, pass it to `mountWorkbench({ locale, ... })`. Translate game-specific labels in the adapter. [Try the ball demo](https://ryotakuga-source.github.io/game-debug-workbench/assets/web/demo.html) · [Language setup](references/integration.md#display-language)
+
 ブラウザゲームに開発用のデバッグ盤を追加する、Codex・Claude Code向けのスキルです。ゲーム画面を見ながら、イベントが起きたコマで止めたり、調整値を変えて同じ入力を再生したりできます。
+
+盤面と見本はブラウザの優先言語に合わせて日本語・英語で表示します。ゲームに言語設定があれば、そちらを優先できます。
 
 ## 見本を試す
 

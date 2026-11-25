@@ -169,7 +169,8 @@
   border-radius: 10px;
 }
 .gdw-placement-picker::backdrop { background: #080e12ab; }
-.gdw-placement-picker h2 { margin: 0 0 12px; font-size: 16px; }
+.gdw-placement-picker h2 { margin: 0 0 12px; font-size: 16px; overflow-wrap: anywhere; }
+.gdw-placement-picker select { min-width: 0; max-width: 100%; }
 .gdw-placement-picker label { display: grid; gap: 4px; margin: 10px 0; }
 .gdw-placement-picker.gdw-visibility[open] {
   display: flex;
@@ -204,7 +205,7 @@
   accent-color: var(--gdw-accent);
 }
 .gdw-visibility .gdw-picker-actions { flex-shrink: 0; }
-.gdw-picker-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+.gdw-picker-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin-top: 16px; }
 .gdw-layout-form { margin-top: 8px; }
 .gdw-layout-form input { width: min(100%, 200px); }
 .gdw-layout-undo-hint { color: var(--gdw-muted); font-size: 12px; }
@@ -302,7 +303,7 @@
 }
 .gdw-lane-reset:focus-visible { outline: 2px solid var(--gdw-accent); }
 .gdw-size-reset .gdw-picker-actions { display: grid; justify-content: stretch; }
-.gdw-size-reset button { min-height: 36px; text-align: start; }
+.gdw-size-reset button { min-height: 36px; text-align: start; white-space: normal; }
 .gdw-size-reset button:last-child { justify-self: end; }
 @media (pointer: coarse) {
   .gdw-height-edge { height: 16px; }
